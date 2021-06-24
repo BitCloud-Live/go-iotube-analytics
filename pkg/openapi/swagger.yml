@@ -1,0 +1,147 @@
+swagger: "2.0"
+info:
+  description: "polydefi v1 api"
+  version: "1.0.0"
+  title: "polydefi"
+  termsOfService: "http://swagger.io/terms/"
+  contact:
+    email: "apiteam@swagger.io"
+  license:
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+host: "polydefi.bitcloud.live"
+basePath: "/v1"
+schemes:
+- "https"
+- "http"
+paths:
+  /data:
+    get:
+      tags:
+      - "data"
+      summary: "Get all defi data"
+      description: ""
+      operationId: "getAllData"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/AllData"
+        404:
+          description: "not found"
+          schema:
+            $ref: "#/definitions/ApiResponse"
+
+  /chart/{days}:
+    get:
+      tags:
+      - "data"
+      summary: "Get chart defi data"
+      description: ""
+      operationId: "getChartData"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "days"
+        in: "path"
+        description: "Number of days"
+        required: true
+        type: "integer"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/ChartData"
+        404:
+          description: "not found"
+          schema:
+            $ref: "#/definitions/ApiResponse"
+
+
+definitions:
+  AllData:
+    type: "array"
+    items:
+      $ref: '#/definitions/DefiData'
+  DefiData:
+    type: "object"
+    properties:
+      name: 
+        type: "string"
+        description: "Name"
+        x-omitempty: false
+      chain:
+        type: "string"
+        description: "Name"
+        x-omitempty: false
+      category: 
+        type: "string"
+        description: "Category"
+        x-omitempty: false
+      volume: 
+        type: "integer"
+        description: "Volume"
+        x-omitempty: false
+      lockedUsd: 
+        type: "integer"
+        description: "Locked Usd"
+        x-omitempty: false
+      tvlPercentChange24h: 
+        type: "number"
+        description: "TVL Percent Change 24h"
+        x-omitempty: false
+      verified: 
+        type: "integer"
+        description: "Verified"
+        x-omitempty: false
+      contractNum:
+        type: "integer"
+        description: "Contract Num"
+        x-omitempty: false
+      lastUpdated: 
+        type: "integer"
+        format: "int64"
+        x-omitempty: false
+        description: "Last Updated"
+      token:
+        type: "string"
+        description: "Token"
+      price: 
+        type: "number"
+        description: "Price"
+        x-omitempty: false
+      priceChange24h: 
+        type: "number"
+        description: "Price Percent Change 24h"
+        x-omitempty: false
+      marketCap: 
+        type: "number"
+        description: "Market Cap"
+        x-omitempty: false
+      marketCapChange24h: 
+        type: "number"
+        description: "Market Cap Change 24h"
+        x-omitempty: false
+      holders: 
+        type: "integer"
+        description: "Holders"
+        x-omitempty: false
+      holdersChange24hNum:
+        type: "integer"
+        description: "Holders Change 24h"
+        x-omitempty: false
+
+  ChartData:
+    type: "object"
+        
+  ApiResponse:
+    type: "object"
+    properties:
+      status:
+        type: "string"
+        x-omitempty: false
+      message:
+        type: "string"
+        x-omitempty: false
