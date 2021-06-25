@@ -25,7 +25,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"golang.org/x/net/netutil"
 
-	"github.com/polystation/polydefi-api/pkg/openapi/swagger/restapi/operations"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations"
 )
 
 const (

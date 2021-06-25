@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/polystation/polydefi-api/pkg/openapi/swagger/models"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/models"
 )
 
 // GetAllDataOKCode is the HTTP code returned for type GetAllDataOK

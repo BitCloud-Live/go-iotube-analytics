@@ -19,7 +19,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 
-	"github.com/polystation/polydefi-api/pkg/openapi/swagger/restapi/operations/data"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations/data"
 )
 
 // NewPolydefiAPI creates a new Polydefi instance

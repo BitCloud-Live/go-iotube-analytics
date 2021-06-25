@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/polystation/polydefi-api/pkg/config"
+	"github.com/pkg/errors"
 )
 
 // NewLogger create a new logger.
@@ -19,23 +19,20 @@ func NewLogger() log.Logger {
 }
 
 // ApplyFilter applies a filter to logger based on component name.
-func ApplyFilter(cfg config.Config, componentName string, logger log.Logger) (log.Logger, error) {
-	lvl := level.AllowInfo()
-	// TODO: add logger to cfg
-	// if configLevel, ok := cfg.Logger[componentName]; ok {
-	// 	switch configLevel {
-	// 	case "error":
-	// 		lvl = level.AllowError()
-	// 	case "warn":
-	// 		lvl = level.AllowWarn()
-	// 	case "info":
-	// 		lvl = level.AllowInfo()
-	// 	case "debug":
-	// 		lvl = level.AllowDebug()
-	// 	default:
-	// 		return nil, errors.Errorf("unexpected log level:%v", configLevel)
-	// 	}
-	// }
-	lvl = level.AllowDebug()
+func ApplyFilter(configLevel string, logger log.Logger) (log.Logger, error) {
+	var lvl level.Option
+	switch configLevel {
+	case "error":
+		lvl = level.AllowError()
+	case "warn":
+		lvl = level.AllowWarn()
+	case "info":
+		lvl = level.AllowInfo()
+	case "debug":
+		lvl = level.AllowDebug()
+	default:
+		return nil, errors.Errorf("unexpected log level:%v", configLevel)
+	}
+
 	return level.NewFilter(logger, lvl), nil
 }

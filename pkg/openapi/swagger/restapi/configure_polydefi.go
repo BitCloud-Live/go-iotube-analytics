@@ -11,8 +11,8 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/rs/cors"
 
-	"github.com/polystation/polydefi-api/pkg/openapi/swagger/restapi/operations"
-	"github.com/polystation/polydefi-api/pkg/openapi/swagger/restapi/operations/data"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations/data"
 )
 
 //go:generate swagger generate server --target ../../swagger --name Polydefi --spec ../../swagger.yml --principal interface{} --exclude-main

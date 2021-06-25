@@ -4,25 +4,27 @@ import (
 	"context"
 	"fmt"
 	stdlog "log"
+	"os"
 	"syscall"
 
-	"github.com/joho/godotenv"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
+	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
-	"github.com/polystation/polydefi-api/pkg/config"
-	"github.com/polystation/polydefi-api/pkg/controller"
-	"github.com/polystation/polydefi-api/pkg/db"
-	"github.com/polystation/polydefi-api/pkg/logging"
+
+	"github.com/prometheus/prometheus/tsdb"
 )
 
 func main() {
 	logger := logging.NewLogger()
-	cfg := config.GetConfig()
-	ExitOnErr(godotenv.Load(), "loading .env file")
-	db, err := db.OpenDB(cfg, logger)
+
+	cfg, err := config.ParseConfig(logger, "")
 	if err != nil {
-		ExitOnErr(err, "open db")
+		ExitOnErr(err, "creating config")
+
 	}
+
 	var g run.Group
 	{
 		g.Add(run.SignalHandler(context.Background(), syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM))
@@ -31,11 +33,11 @@ func main() {
 		tsdbOptions := tsdb.DefaultOptions()
 		// tsdbOptions.RetentionDuration = int64(2 * 24 * time.Hour / time.Millisecond)
 		if err := os.MkdirAll(cfg.Db.Path, 0777); err != nil {
-			return errors.Wrap(err, "creating tsdb DB folder")
+			ExitOnErr(err, "creating tsdb DB folder")
 		}
 		tsDB, err := tsdb.Open(cfg.Db.Path, nil, nil, tsdbOptions)
 		if err != nil {
-			return errors.Wrap(err, "creating tsdb DB")
+			ExitOnErr(err, "creating tsdb DB")
 		}
 		level.Info(logger).Log("msg", "opened local db", "path", cfg.Db.Path)
 
@@ -46,8 +48,8 @@ func main() {
 		}()
 
 		// web Controller component.
-		{
-			controller, err := controller.NewController(cfg, db, logger)
+		/*
+			controller, err := web.New(cfg, db, logger)
 			if err != nil {
 				ExitOnErr(err, "creating controller")
 			}
@@ -56,8 +58,7 @@ func main() {
 			}, func(error) {
 				controller.Stop()
 			})
-		}
-
+		*/
 	}
 
 	if err := g.Run(); err != nil {

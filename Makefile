@@ -1,14 +1,57 @@
 #!make
-version := $(shell git describe --abbrev=0 --tags)
+include .bingo/Variables.mk
 
-all: build
+FILES_TO_FMT      ?= $(shell find . -name '*.go' -print)
+
+# Ensure everything works even if GOPATH is not set, which is often the case.
+# The `go env GOPATH` will work for all cases for Go 1.8+.
+GOPATH      ?= $(shell go env GOPATH)
+GOBIN       ?= $(firstword $(subst :, ,${GOPATH}))/bin
+GOTEST_OPTS ?= --race -failfast -timeout 10m
+GOPROXY     ?= https://proxy.golang.org
+
+# Support gsed on OSX (installed via brew), falling back to sed. On Linux
+# systems gsed won't be installed, so will use sed as expected.
+SED     ?= $(shell which gsed 2>/dev/null || which sed)
+GIT     ?= $(shell which git)
+
+BIN_DIR ?= /tmp/bin
+OS      ?= $(shell uname -s | tr '[A-Z]' '[a-z]')
+ARCH    ?= $(shell uname -m)
+
+SHELLCHECK ?= $(BIN_DIR)/shellcheck
+
+define require_clean_work_tree
+	@git update-index -q --ignore-submodules --refresh
+
+	@if ! git diff-files --quiet --ignore-submodules --; then \
+		echo >&2 "$1: you have unstaged changes."; \
+		git diff-files --name-status -r --ignore-submodules -- >&2; \
+		echo >&2 "Please commit or stash them."; \
+		exit 1; \
+	fi
+
+	@if ! git diff-index --cached --quiet HEAD --ignore-submodules --; then \
+		echo >&2 "$1: your index contains uncommitted changes."; \
+		git diff-index --cached --name-status -r --ignore-submodules HEAD -- >&2; \
+		echo >&2 "Please commit or stash them."; \
+		exit 1; \
+	fi
+
+endef
+
+
+.PHONY: deps
+deps: ## Ensures fresh go.mod and go.sum.
+	@go mod tidy
+	@go mod verify
 
 # The `validate` target checks for errors and inconsistencies in 
 # our specification of an API. This target can check if we're 
 # referencing inexistent definitions and gives us hints to where
 # to fix problems with our API in a static manner.
 validate:
-	swagger validate ./pkg/openapi/swagger.yml
+	@swagger validate ./pkg/openapi/swagger.yml
 
 # The `gen` target depends on the `validate` target as
 # it will only succesfully generate the code if the specification
@@ -20,38 +63,37 @@ validate:
 # --exclude-main        generates only the library code and not a 
 #                       sample CLI application;
 # --name                the name of the application.
+.PHONY: gen
 gen: validate 
-	swagger generate server \
+	@swagger generate server \
 		--target=./pkg/openapi/swagger \
 		--spec=./pkg/openapi/swagger.yml \
 		--exclude-main \
 		--name=polydefi
 
+.PHONY: check-git
+check-git:
+ifneq ($(GIT),)
+	@test -x $(GIT) || (echo >&2 "No git executable binary found at $(GIT)."; exit 1)
+else
+	@echo >&2 "No git binary found."; exit 1
+endif
+
+.PHONY: build
+build: ## Build the project.
+build: check-git
+build: export GIT_TAG=$(shell git describe --tags)
+build: export GIT_HASH=$(shell git rev-parse --short HEAD)
 build:
-	go build -o build/api cmd/main.go
-
-clean:
-	rm -rf build/*
-
-run:    build
-	export $$(cat .env | grep -v ^\# | xargs) && \
-		./build/api
-
-docker-build:
-	docker build -t hub.docker.io/polystation/polydefi-api:$(version) . 
-
-docker-push:
-	docker push hub.docker.io/polystation/polydefi-api:$(version)
+	@[ "${GIT_TAG}" ] || ( echo ">> GIT_TAG is not set"; exit 1 )
+	@[ "${GIT_HASH}" ] || ( echo ">> GIT_HASH is not set"; exit 1 )
+	go build -ldflags "-X main.GitTag=$(GIT_TAG) -X main.GitHash=$(GIT_HASH) -s -w" ./cmd
 
 
 
-update-deps: download tidy vendor
-
-download:
-	go mod download
-
-tidy:
-	go mod tidy -v
-
-vendor:
-	go mod vendor
+.PHONY: generate-bindings
+generate-bindings: 
+	git clone https://github.com/iotexproject/ioTube tmp/ioTube
+	@solc --sol tmp/ioTube
+	rm -rf tmp/ioTube
+	

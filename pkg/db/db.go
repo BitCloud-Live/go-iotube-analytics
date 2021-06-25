@@ -1,12 +1,11 @@
 package db
 
-import (
-	"github.com/tellor-io/telliot/pkg/format"
-)
+import "github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
 
 const ComponentName = "db"
 
 type Config struct {
-	LogLevel string
-	Path     string
+	LogLevel      string
+	Path          string
+	RemoteTimeout format.Duration
 }
