@@ -93,7 +93,15 @@ build:
 
 .PHONY: generate-bindings
 generate-bindings: 
-	git clone https://github.com/iotexproject/ioTube tmp/ioTube
-	@solc --sol tmp/ioTube
 	rm -rf tmp/ioTube
+	git clone https://github.com/iotexproject/ioTube tmp/ioTube
+	rm -rf pkg/contracts/*
+	mkdir pkg/contracts/tokenCashier
+	abigen --sol tmp/ioTube/contracts/iotube/TokenCashier.sol --pkg tokenCashier    --out pkg/contracts/tokenCashier/tokenCashier.go
+	mkdir pkg/contracts/tokenSafe
+	abigen --sol tmp/ioTube/contracts/iotube/TokenSafe.sol --pkg tokenSafe    --out pkg/contracts/tokenSafe/tokenSafe.go
+	mkdir pkg/contracts/tokenList
+	abigen --sol tmp/ioTube/contracts/iotube/TokenList.sol --pkg tokenList    --out pkg/contracts/tokenList/tokenList.go
+	mkdir pkg/contracts/shadowTokenList
+	abigen --sol tmp/ioTube/contracts/iotube/ShadowTokenListManager.sol --pkg shadowTokenList    --out pkg/contracts/shadowTokenList/shadowTokenList.go
 	
