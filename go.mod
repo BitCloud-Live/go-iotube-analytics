@@ -16,12 +16,12 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.10.1-0.20210520222353-a7515ca7c9c6 // indirect
-	github.com/prometheus/common v0.25.0 // indirect
 	github.com/prometheus/prometheus v1.8.2-0.20210520210015-1838068db5df
 	github.com/rs/cors v1.7.0
 	github.com/shopspring/decimal v1.2.0
+	github.com/tellor-io/telliot v0.0.0-20210625151718-42243c0808af
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
-	golang.org/x/net v0.0.0-20210505214959-0714010a04ed
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
+
 )

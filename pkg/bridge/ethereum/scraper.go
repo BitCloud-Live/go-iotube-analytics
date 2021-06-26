@@ -4,39 +4,61 @@ import (
 	"context"
 	"math"
 	"math/big"
+	"sort"
 	"time"
 
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/tsdb"
+	"github.com/tellor-io/telliot/pkg/format"
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/shopspring/decimal"
 )
 
-const ComponentName = "ethWatcher"
-
 type EthereumWatcher struct {
 	logger log.Logger
-	cfg    *config.Config
+	cfg    Config
 	ctx    context.Context
 	cncl   context.CancelFunc
 	client *ethclient.Client
-	db     db.DB
+	db     *tsdb.DB
+	engine *promql.Engine
 }
 
-func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg *config.Config, db db.DB) (*EthereumWatcher, error) {
-	filterLog, err := logging.ApplyFilter(*cfg, ComponentName, logger)
+func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, db *tsdb.DB) (*EthereumWatcher, error) {
+	filterLog, err := logging.ApplyFilter(cfg.LogLevel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply filter logger")
 	}
 	logger = log.With(filterLog, "component", ComponentName)
 	ctx, cncl := context.WithCancel(ctx)
+
+	// promqlEngine
+	opts := promql.EngineOpts{
+		Logger:               logger,
+		Reg:                  nil,
+		MaxSamples:           30000,
+		Timeout:              10 * time.Second,
+		LookbackDelta:        5 * time.Minute,
+		EnableAtModifier:     true,
+		EnableNegativeOffset: true,
+	}
+	engine := promql.NewEngine(opts)
+
 	return &EthereumWatcher{
 		logger: logger,
 		cfg:    cfg,
 		ctx:    ctx,
 		cncl:   cncl,
 		db:     db,
+		engine: engine,
 		client: client,
 	}, nil
 }
@@ -69,18 +91,16 @@ func (ew *EthereumWatcher) Start() error {
 		}
 		toBlockNo = new(big.Int).Sub(header.Number, big.NewInt(18))
 
-		// Get last checked block no from the db.
-		coin, _ := wallet.ETH.Symbol()
-		lastCheckedBlockNo, err := ew.db.GetLastCheckedBlockNo(coin)
-
+		// Get last checked block number from the db.
+		lastCheckedBlockNo, err := bridge.LastCheckedBlockNo(ew.ctx, ew.engine, ew.db, "ethereum")
 		if err != nil {
 			fromBlockNo = new(big.Int).Sub(toBlockNo, big.NewInt(18))
 			level.Info(ew.logger).Log("msg", "watching ethereum blockchain for the first time")
 
 		} else {
 			// Look ahead one block to make sure we didn't miss any new invoices.
-			fromBlockNo = big.NewInt(int64(lastCheckedBlockNo))
-			if toBlockNo.Uint64() < lastCheckedBlockNo {
+			fromBlockNo = lastCheckedBlockNo
+			if toBlockNo.Uint64() < lastCheckedBlockNo.Uint64() {
 				<-ticker.C
 				continue
 			}
@@ -106,6 +126,7 @@ func (ew *EthereumWatcher) Start() error {
 			)
 		}
 		// Lets commit txs to the database.
+		// TODO: tsdb
 		err = ew.db.UpdateState(wallet.ETH, txs, toBlockNo)
 		if err != nil {
 			level.Error(ew.logger).Log("msg", "updating eth blockchain state",
@@ -198,4 +219,33 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]db.Trans
 	// }
 	// log.Printf("successfuly add new deposits to the system")
 	return txs, nil
+}
+
+func (ew *EthereumWatcher) recordTx(tx *types.Transaction) error {
+	appender := ew.db.Appender(self.ctx)
+	defer func() { // An appender always needs to be committed or rolled back.
+		if err != nil {
+			if err := appender.Rollback(); err != nil {
+				level.Error(logger).Log("msg", "db rollback failed", "err", err)
+			}
+			return
+		}
+		if errC := appender.Commit(); errC != nil {
+			err = errors.Wrap(err, "db append commit failed")
+		}
+	}()
+
+	lbls := labels.Labels{
+		labels.Label{Name: "__name__", Value: IntervalMetricName},
+		labels.Label{Name: "source", Value: dataSource.Source()},
+		labels.Label{Name: "domain", Value: source.Host},
+		labels.Label{Name: "symbol", Value: format.SanitizeMetricName(symbol)},
+	}
+
+	sort.Sort(lbls) // This is important! The labels need to be sorted to avoid creating the same series with duplicate reference.
+
+	_, err = appender.Append(0, lbls, ts, float64(interval))
+	if err != nil {
+		return errors.Wrap(err, "append values to the DB")
+	}
 }
