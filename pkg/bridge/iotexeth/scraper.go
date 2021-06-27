@@ -16,13 +16,12 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/timestamp"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/tsdb"
-	"github.com/tellor-io/telliot/pkg/format"
 
 	log "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/shopspring/decimal"
 )
 
 type EthereumWatcher struct {
@@ -33,7 +32,8 @@ type EthereumWatcher struct {
 	client *ethclient.Client
 	db     *tsdb.DB
 	engine *promql.Engine
-	tokens []common.Address
+	// Map: token address ->  token symbol.
+	tokens map[string]ERC20
 }
 
 func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, db *tsdb.DB) (*EthereumWatcher, error) {
@@ -137,7 +137,11 @@ func (ew *EthereumWatcher) Start() error {
 			)
 		}
 		// Lets commit txs to the database.
-		self.updateState(txs, toBlockNo)
+		// FIXME: better logic needed here.
+		err = ew.recordTxs(txs)
+		if err != nil {
+			err = ew.updateLastCheckedBlockNo(toBlockNo)
+		}
 		if err != nil {
 			level.Error(ew.logger).Log("msg", "updating eth blockchain state",
 				"err", err,
@@ -163,32 +167,41 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Tran
 			return nil, err
 		}
 		for _, tx := range block.Transactions() {
+			symbol := "ETH"
+			var amount float64
 			if tx.To() == nil {
 				// Skip on a contract creation tx.
 				continue
 			}
-			address := tx.To().Hex()
-			if _, ok := unsettled[address]; !ok {
-				continue
-			}
-			level.Info(ew.logger).Log("msg",
-				"found transaction",
-				"txHash", tx.Hash().String(),
-			)
-
-			amount := new(big.Float)
-			amount.SetString(tx.Value().String())
-			ethValue := new(big.Float).Quo(amount, big.NewFloat(math.Pow10(18)))
-			ethDecimal, err := decimal.NewFromString(ethValue.String())
-			if err != nil {
-				level.Error(ew.logger).Log("msg",
-					"convert big float to decimal",
-					"err", err,
+			erc20, ok := ew.tokens[tx.To().Hex()]
+			if ok {
+				level.Debug(ew.logger).Log("msg",
+					"found transaction",
+					"txHash", tx.Hash().String(),
 				)
-				return nil, err
+				symbol = erc20.Symbol
+				amount, err = ew.getTransferAmount(erc20, tx.To(), tx.Hash())
+				if err != nil {
+					return nil, errors.Wrap(err, "getting transfer event")
+				}
+			} else {
+
+				level.Debug(ew.logger).Log("msg",
+					"eth deposit transaction",
+					"txHash", tx.Hash().String(),
+				)
+				_amount, ok := big.NewFloat(0).SetString(tx.Value().String())
+				if !ok {
+					level.Error(ew.logger).Log("msg",
+						"unexpected conversion error",
+						"err", err,
+					)
+					return nil, err
+				}
+				amount, _ = new(big.Float).Quo(_amount, big.NewFloat(math.Pow10(18))).Float64()
 			}
 
-			msg, err := tx.AsMessage(types.NewEIP155Signer(tx.ChainId()))
+			msg, err := tx.AsMessage(types.NewEIP155Signer(tx.ChainId()), nil)
 			if err != nil {
 				level.Error(ew.logger).Log("msg",
 					"getting tx from",
@@ -196,33 +209,29 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Tran
 				)
 				return nil, err
 			}
-			coin, _ := wallet.ETH.Symbol()
-			tx := db.Transaction{
-				InvoiceID: unsettled[address],
-				Amount:    ethDecimal,
-				BlockHash: block.Hash().String(),
+			tx := typ.Transaction{
+				Amount:    amount,
 				BlockNo:   block.NumberU64(),
-				TxHash:    tx.Hash().String(),
-				Coin:      coin,
+				Hash:      tx.Hash().String(),
+				To:        tx.To().Hex(),
+				Symbol:    symbol,
 				From:      msg.From().Hex(),
+				Timestamp: block.Time(),
 			}
 			txs = append(txs, tx)
 		}
 	}
-	// metrics.AddDeposits(trade_types.ETHUSDT, trade_types.Sell, totalDeposits, float64(len(deposits)))
-	// if err != nil {
-	// 	//	log.Fatal("we coudn't commit deposits to the system")
-	// }
-	// log.Printf("successfuly add new deposits to the system")
 	return txs, nil
 }
 
-func (ew *EthereumWatcher) updateState(tx *types.Transaction) error {
-	appender := ew.db.Appender(self.ctx)
+func (ew *EthereumWatcher) recordTxs(txs []typ.Transaction) error {
+	var err error
+
+	appender := ew.db.Appender(ew.ctx)
 	defer func() { // An appender always needs to be committed or rolled back.
 		if err != nil {
 			if err := appender.Rollback(); err != nil {
-				level.Error(logger).Log("msg", "db rollback failed", "err", err)
+				level.Error(ew.logger).Log("msg", "db rollback failed", "err", err)
 			}
 			return
 		}
@@ -231,27 +240,33 @@ func (ew *EthereumWatcher) updateState(tx *types.Transaction) error {
 		}
 	}()
 
-	lbls := labels.Labels{
-		labels.Label{Name: "__name__", Value: IntervalMetricName},
-		labels.Label{Name: "source", Value: dataSource.Source()},
-		labels.Label{Name: "domain", Value: source.Host},
-		labels.Label{Name: "symbol", Value: format.SanitizeMetricName(symbol)},
-	}
+	for _, tx := range txs {
+		ts := timestamp.FromFloatSeconds(float64(tx.Timestamp))
+		lbls := labels.Labels{
+			labels.Label{Name: "__name__", Value: "tx"},
+			labels.Label{Name: "network", Value: string(tx.Network)},
+			labels.Label{Name: "type", Value: "in"},
+			labels.Label{Name: "symbol", Value: tx.Symbol},
+		}
 
-	sort.Sort(lbls) // This is important! The labels need to be sorted to avoid creating the same series with duplicate reference.
+		sort.Sort(lbls) // This is important! The labels need to be sorted to avoid creating the same series with duplicate reference.
 
-	_, err = appender.Append(0, lbls, ts, float64(interval))
-	if err != nil {
-		return errors.Wrap(err, "append values to the DB")
+		_, err = appender.Append(0, lbls, ts, float64(tx.Amount))
+		if err != nil {
+			return errors.Wrap(err, "append values to the DB")
+		}
 	}
+	return nil
 }
 
-func (ew *EthereumWatcher) recordTx(tx *types.Transaction) error {
-	appender := ew.db.Appender(self.ctx)
+func (ew *EthereumWatcher) updateLastCheckedBlockNo(blockNo *big.Int) error {
+	var err error
+	ts := timestamp.FromTime(time.Now().Round(5 * time.Second))
+	appender := ew.db.Appender(ew.ctx)
 	defer func() { // An appender always needs to be committed or rolled back.
 		if err != nil {
 			if err := appender.Rollback(); err != nil {
-				level.Error(logger).Log("msg", "db rollback failed", "err", err)
+				level.Error(ew.logger).Log("msg", "db rollback failed", "err", err)
 			}
 			return
 		}
@@ -261,16 +276,22 @@ func (ew *EthereumWatcher) recordTx(tx *types.Transaction) error {
 	}()
 
 	lbls := labels.Labels{
-		labels.Label{Name: "__name__", Value: IntervalMetricName},
-		labels.Label{Name: "source", Value: dataSource.Source()},
-		labels.Label{Name: "domain", Value: source.Host},
-		labels.Label{Name: "symbol", Value: format.SanitizeMetricName(symbol)},
+		labels.Label{Name: "__name__", Value: "blockchain"},
+		labels.Label{Name: "network", Value: string(typ.NetEthereum)},
 	}
 
 	sort.Sort(lbls) // This is important! The labels need to be sorted to avoid creating the same series with duplicate reference.
 
-	_, err = appender.Append(0, lbls, ts, float64(interval))
+	_, err = appender.Append(0, lbls, ts, float64(blockNo.Uint64()))
 	if err != nil {
 		return errors.Wrap(err, "append values to the DB")
 	}
+	return nil
+}
+
+func (ew *EthereumWatcher) getTransferAmount(erc20 ERC20, token common.Address, txHash common.Hash) (float64, error) {
+	//TODO:
+	// 1- get event from tx
+	// 2- parse event
+	// 3- apply decimals
 }

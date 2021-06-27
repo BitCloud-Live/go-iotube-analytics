@@ -7,10 +7,13 @@ const (
 )
 
 type Transaction struct {
-	From    string
-	To      string
-	Network Network
-	Value   string
-	Symbol  string
-	Deposit bool
+	From      string
+	To        string
+	Hash      string
+	BlockNo   uint64
+	Network   Network
+	Amount    float64
+	Symbol    string
+	Deposit   bool
+	Timestamp uint64
 }
