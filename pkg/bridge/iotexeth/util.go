@@ -1,6 +1,7 @@
 package ethereum
 
 import (
+	"math"
 	"math/big"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/contracts/erc20"
@@ -63,14 +64,25 @@ func getTokenList(client *ethclient.Client) (map[string]ERC20, error) {
 
 }
 
-func getTVL(client *ethclient.Client, token common.Address) (*big.Int, error) {
+func getTVL(client *ethclient.Client, token common.Address) (float64, error) {
 	// Getting standard token list.
 	erc20Caller, err := erc20.NewErc20Caller(token, client)
 	if err != nil {
-		return nil, err
+		return 0, err
 
 	}
-	return erc20Caller.BalanceOf(&bind.CallOpts{}, TokenSafeAddress)
+	balance, err := erc20Caller.BalanceOf(&bind.CallOpts{}, TokenSafeAddress)
+	if err != nil {
+		return 0, errors.Wrap(err, "can't fetch token balance")
+	}
+	decimals, err := getTokenDecimals(client, token)
+	if err != nil {
+		return 0, errors.Wrap(err, "can't fetch token decimals")
+	}
+	transferValue := big.NewFloat(0).SetInt(balance)
+	// Apply decimals.
+	amount, _ := big.NewFloat(0).Quo(transferValue, big.NewFloat(math.Pow10(int(decimals)))).Float64()
+	return amount, nil
 }
 
 func getTokenSymbol(client *ethclient.Client, token common.Address) (string, error) {

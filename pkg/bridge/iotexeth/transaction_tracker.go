@@ -5,12 +5,15 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/contracts/erc20"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	typ "github.com/IoTube-analytics/go-iotube-analytics/pkg/types"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -24,7 +27,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 )
 
-type EthereumWatcher struct {
+type TransactionTracker struct {
 	logger log.Logger
 	cfg    Config
 	ctx    context.Context
@@ -36,7 +39,7 @@ type EthereumWatcher struct {
 	tokens map[string]ERC20
 }
 
-func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, db *tsdb.DB) (*EthereumWatcher, error) {
+func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, db *tsdb.DB) (*TransactionTracker, error) {
 	filterLog, err := logging.ApplyFilter(cfg.LogLevel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply filter logger")
@@ -62,7 +65,7 @@ func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger lo
 		return nil, errors.Wrap(err, "getting token list")
 	}
 
-	return &EthereumWatcher{
+	return &TransactionTracker{
 		logger: logger,
 		cfg:    cfg,
 		ctx:    ctx,
@@ -74,18 +77,18 @@ func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger lo
 	}, nil
 }
 
-func (ew *EthereumWatcher) Stop() {
-	ew.cncl()
-	level.Debug(ew.logger).Log("msg", "ethereum watcher stopped")
+func (tt *TransactionTracker) Stop() {
+	tt.cncl()
+	level.Debug(tt.logger).Log("msg", "ethereum watcher stopped")
 }
 
-func (ew *EthereumWatcher) Start() error {
-	level.Debug(ew.logger).Log("msg", "ethereum watcher started")
+func (tt *TransactionTracker) Start() error {
+	level.Debug(tt.logger).Log("msg", "ethereum watcher started")
 	// Ethereum blocktime ticker.
 	ticker := time.NewTicker(20 * time.Second)
 	for {
 		select {
-		case <-ew.ctx.Done():
+		case <-tt.ctx.Done():
 			return nil
 		default:
 		}
@@ -94,19 +97,19 @@ func (ew *EthereumWatcher) Start() error {
 		)
 
 		// Calculating head block number minus 18.
-		header, err := ew.client.HeaderByNumber(ew.ctx, nil)
+		header, err := tt.client.HeaderByNumber(tt.ctx, nil)
 		if err != nil {
-			level.Error(ew.logger).Log("msg", "getting latest block header", "err", err)
+			level.Error(tt.logger).Log("msg", "getting latest block header", "err", err)
 			<-ticker.C
 			continue
 		}
 		toBlockNo = new(big.Int).Sub(header.Number, big.NewInt(18))
 
 		// Get last checked block number from the db.
-		lastCheckedBlockNo, err := bridge.LastCheckedBlockNo(ew.ctx, ew.engine, ew.db, "ethereum")
+		lastCheckedBlockNo, err := bridge.LastCheckedBlockNo(tt.ctx, tt.engine, tt.db, "ethereum")
 		if err != nil {
-			fromBlockNo = new(big.Int).Sub(toBlockNo, big.NewInt(18))
-			level.Info(ew.logger).Log("msg", "watching ethereum blockchain for the first time")
+			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
+			level.Info(tt.logger).Log("msg", "watching ethereum blockchain for the first time")
 
 		} else {
 			// Look ahead one block to make sure we didn't miss any new invoices.
@@ -116,13 +119,13 @@ func (ew *EthereumWatcher) Start() error {
 				continue
 			}
 		}
-		level.Info(ew.logger).Log("msg", "checking for new transactions",
+		level.Info(tt.logger).Log("msg", "checking for new transactions",
 			"fromBlockNo", fromBlockNo,
 			"toBlockNo", toBlockNo,
 		)
-		txs, err := ew.traverse(fromBlockNo, toBlockNo)
+		txs, err := tt.traverse(fromBlockNo, toBlockNo)
 		if err != nil {
-			level.Error(ew.logger).Log("msg", "traversing the eth blockchain",
+			level.Error(tt.logger).Log("msg", "traversing the eth blockchain",
 				"err", err,
 				"fromBlockNo", fromBlockNo,
 				"toBlockNo", toBlockNo,
@@ -131,19 +134,19 @@ func (ew *EthereumWatcher) Start() error {
 			continue
 		}
 		if len(txs) > 0 {
-			level.Info(ew.logger).Log("msg",
+			level.Info(tt.logger).Log("msg",
 				"found new transactions",
 				"count", len(txs),
 			)
 		}
 		// Lets commit txs to the database.
 		// FIXME: better logic needed here.
-		err = ew.recordTxs(txs)
+		err = tt.recordTxs(txs)
 		if err != nil {
-			err = ew.updateLastCheckedBlockNo(toBlockNo)
+			err = tt.updateLastCheckedBlockNo(toBlockNo)
 		}
 		if err != nil {
-			level.Error(ew.logger).Log("msg", "updating eth blockchain state",
+			level.Error(tt.logger).Log("msg", "updating eth blockchain state",
 				"err", err,
 				"fromBlockNo", fromBlockNo,
 				"toBlockNo", toBlockNo,
@@ -153,14 +156,14 @@ func (ew *EthereumWatcher) Start() error {
 	}
 }
 
-func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Transaction, error) {
+func (tt *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Transaction, error) {
 	txs := make([]typ.Transaction, 0)
 
 	// Iterate over blocks to 18 block before head.
 	for i := fromBlockNo.Int64(); i <= toBlockNo.Int64(); i++ {
-		block, err := ew.client.BlockByNumber(ew.ctx, big.NewInt(int64(i)))
+		block, err := tt.client.BlockByNumber(tt.ctx, big.NewInt(int64(i)))
 		if err != nil {
-			level.Error(ew.logger).Log("msg",
+			level.Error(tt.logger).Log("msg",
 				"getting block by no",
 				"err", err,
 				"no", i)
@@ -173,26 +176,26 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Tran
 				// Skip on a contract creation tx.
 				continue
 			}
-			erc20, ok := ew.tokens[tx.To().Hex()]
+			erc20, ok := tt.tokens[tx.To().Hex()]
 			if ok {
-				level.Debug(ew.logger).Log("msg",
+				level.Debug(tt.logger).Log("msg",
 					"found transaction",
 					"txHash", tx.Hash().String(),
 				)
 				symbol = erc20.Symbol
-				amount, err = ew.getTransferAmount(erc20, tx.To(), tx.Hash())
+				amount, err = tt.getTransferAmount(erc20, tx.To(), tx.Hash())
 				if err != nil {
 					return nil, errors.Wrap(err, "getting transfer event")
 				}
 			} else {
 
-				level.Debug(ew.logger).Log("msg",
+				level.Debug(tt.logger).Log("msg",
 					"eth deposit transaction",
 					"txHash", tx.Hash().String(),
 				)
 				_amount, ok := big.NewFloat(0).SetString(tx.Value().String())
 				if !ok {
-					level.Error(ew.logger).Log("msg",
+					level.Error(tt.logger).Log("msg",
 						"unexpected conversion error",
 						"err", err,
 					)
@@ -203,7 +206,7 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Tran
 
 			msg, err := tx.AsMessage(types.NewEIP155Signer(tx.ChainId()), nil)
 			if err != nil {
-				level.Error(ew.logger).Log("msg",
+				level.Error(tt.logger).Log("msg",
 					"getting tx from",
 					"err", err,
 				)
@@ -224,14 +227,14 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Tran
 	return txs, nil
 }
 
-func (ew *EthereumWatcher) recordTxs(txs []typ.Transaction) error {
+func (tt *TransactionTracker) recordTxs(txs []typ.Transaction) error {
 	var err error
 
-	appender := ew.db.Appender(ew.ctx)
+	appender := tt.db.Appender(tt.ctx)
 	defer func() { // An appender always needs to be committed or rolled back.
 		if err != nil {
 			if err := appender.Rollback(); err != nil {
-				level.Error(ew.logger).Log("msg", "db rollback failed", "err", err)
+				level.Error(tt.logger).Log("msg", "db rollback failed", "err", err)
 			}
 			return
 		}
@@ -259,14 +262,14 @@ func (ew *EthereumWatcher) recordTxs(txs []typ.Transaction) error {
 	return nil
 }
 
-func (ew *EthereumWatcher) updateLastCheckedBlockNo(blockNo *big.Int) error {
+func (tt *TransactionTracker) updateLastCheckedBlockNo(blockNo *big.Int) error {
 	var err error
 	ts := timestamp.FromTime(time.Now().Round(5 * time.Second))
-	appender := ew.db.Appender(ew.ctx)
+	appender := tt.db.Appender(tt.ctx)
 	defer func() { // An appender always needs to be committed or rolled back.
 		if err != nil {
 			if err := appender.Rollback(); err != nil {
-				level.Error(ew.logger).Log("msg", "db rollback failed", "err", err)
+				level.Error(tt.logger).Log("msg", "db rollback failed", "err", err)
 			}
 			return
 		}
@@ -289,9 +292,32 @@ func (ew *EthereumWatcher) updateLastCheckedBlockNo(blockNo *big.Int) error {
 	return nil
 }
 
-func (ew *EthereumWatcher) getTransferAmount(erc20 ERC20, token common.Address, txHash common.Hash) (float64, error) {
-	//TODO:
-	// 1- get event from tx
-	// 2- parse event
-	// 3- apply decimals
+func (tt *TransactionTracker) getTransferAmount(erc20Token ERC20, tokenAddress *common.Address, txHash common.Hash) (float64, error) {
+	abi, err := abi.JSON(strings.NewReader(string(erc20.Erc20ABI)))
+	if err != nil {
+		return 0, err
+	}
+	tx, err := tt.client.TransactionReceipt(context.TODO(), txHash)
+	if err != nil {
+		return 0, err
+	}
+	var transferEvent struct {
+		From  common.Address
+		To    common.Address
+		Value *big.Int
+	}
+
+	for _, vLog := range tx.Logs {
+		err := abi.UnpackIntoInterface(&transferEvent, "Transfer", vLog.Data)
+		if err == nil {
+			transferEvent.To = common.BytesToAddress(vLog.Topics[2].Bytes())
+			if transferEvent.To == TokenSafeAddress {
+				transferValue := big.NewFloat(0).SetInt(transferEvent.Value.SetBytes(vLog.Topics[3].Bytes()))
+				// Apply decimals.
+				amount, _ := big.NewFloat(0).Quo(transferValue, big.NewFloat(math.Pow10(int(erc20Token.Decimals)))).Float64()
+				return amount, nil
+			}
+		}
+	}
+	return 0, errors.New("couldn't find a transfer")
 }

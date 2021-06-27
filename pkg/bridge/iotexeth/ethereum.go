@@ -9,6 +9,8 @@ var TokenSafeAddress = common.HexToAddress("0xc2e0f31d739cb3153ba5760a203b3bd7c2
 var StandardTokenListAddress = common.HexToAddress("0x7c0bef36e1b1cbeb1f1a5541300786a7b608aede")
 var ProxyTokenListAddress = common.HexToAddress("0x73ffdfc98983ad59fb441fc5fe855c1589e35b3e")
 
+const TokenCashierStartBlockNo = 11827391
+
 type Config struct {
 	LogLevel string
 	Timeout  uint
