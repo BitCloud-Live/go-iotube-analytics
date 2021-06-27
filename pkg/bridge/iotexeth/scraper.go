@@ -9,6 +9,9 @@ import (
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
+	typ "github.com/IoTube-analytics/go-iotube-analytics/pkg/types"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
@@ -30,6 +33,7 @@ type EthereumWatcher struct {
 	client *ethclient.Client
 	db     *tsdb.DB
 	engine *promql.Engine
+	tokens []common.Address
 }
 
 func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, db *tsdb.DB) (*EthereumWatcher, error) {
@@ -52,6 +56,12 @@ func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger lo
 	}
 	engine := promql.NewEngine(opts)
 
+	// Getting tokens.
+	tokens, err := getTokenList(client)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting token list")
+	}
+
 	return &EthereumWatcher{
 		logger: logger,
 		cfg:    cfg,
@@ -60,6 +70,7 @@ func NewEthereumWatcher(ctx context.Context, client *ethclient.Client, logger lo
 		db:     db,
 		engine: engine,
 		client: client,
+		tokens: tokens,
 	}, nil
 }
 
@@ -126,8 +137,7 @@ func (ew *EthereumWatcher) Start() error {
 			)
 		}
 		// Lets commit txs to the database.
-		// TODO: tsdb
-		err = ew.db.UpdateState(wallet.ETH, txs, toBlockNo)
+		self.updateState(txs, toBlockNo)
 		if err != nil {
 			level.Error(ew.logger).Log("msg", "updating eth blockchain state",
 				"err", err,
@@ -139,22 +149,8 @@ func (ew *EthereumWatcher) Start() error {
 	}
 }
 
-func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]db.Transaction, error) {
-	unsettled, err := ew.db.GetUnsettledInvoices(wallet.ETH)
-	if err != nil {
-		level.Error(ew.logger).Log("msg",
-			"loading unsettled invoice from the kv",
-			"err", err)
-		return nil, err
-	}
-	txs := []db.Transaction{}
-	if len(unsettled) == 0 {
-		level.Info(ew.logger).Log("msg",
-			"there is no unsettled invoice, skipping on-chain calls",
-		)
-		return txs, nil
-
-	}
+func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.Transaction, error) {
+	txs := make([]typ.Transaction, 0)
 
 	// Iterate over blocks to 18 block before head.
 	for i := fromBlockNo.Int64(); i <= toBlockNo.Int64(); i++ {
@@ -219,6 +215,35 @@ func (ew *EthereumWatcher) traverse(fromBlockNo, toBlockNo *big.Int) ([]db.Trans
 	// }
 	// log.Printf("successfuly add new deposits to the system")
 	return txs, nil
+}
+
+func (ew *EthereumWatcher) updateState(tx *types.Transaction) error {
+	appender := ew.db.Appender(self.ctx)
+	defer func() { // An appender always needs to be committed or rolled back.
+		if err != nil {
+			if err := appender.Rollback(); err != nil {
+				level.Error(logger).Log("msg", "db rollback failed", "err", err)
+			}
+			return
+		}
+		if errC := appender.Commit(); errC != nil {
+			err = errors.Wrap(err, "db append commit failed")
+		}
+	}()
+
+	lbls := labels.Labels{
+		labels.Label{Name: "__name__", Value: IntervalMetricName},
+		labels.Label{Name: "source", Value: dataSource.Source()},
+		labels.Label{Name: "domain", Value: source.Host},
+		labels.Label{Name: "symbol", Value: format.SanitizeMetricName(symbol)},
+	}
+
+	sort.Sort(lbls) // This is important! The labels need to be sorted to avoid creating the same series with duplicate reference.
+
+	_, err = appender.Append(0, lbls, ts, float64(interval))
+	if err != nil {
+		return errors.Wrap(err, "append values to the DB")
+	}
 }
 
 func (ew *EthereumWatcher) recordTx(tx *types.Transaction) error {

@@ -104,4 +104,5 @@ generate-bindings:
 	abigen --sol tmp/ioTube/contracts/iotube/TokenList.sol --pkg tokenList    --out pkg/contracts/tokenList/tokenList.go
 	mkdir pkg/contracts/shadowTokenList
 	abigen --sol tmp/ioTube/contracts/iotube/ShadowTokenListManager.sol --pkg shadowTokenList    --out pkg/contracts/shadowTokenList/shadowTokenList.go
-	
+	# ERC20 token binding ->
+	abigen --abi pkg/contracts/erc20/erc20.abi --pkg erc20    --out pkg/contracts/erc20/erc20.go
