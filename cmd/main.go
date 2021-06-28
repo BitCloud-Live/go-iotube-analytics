@@ -7,6 +7,8 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth/eth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	"github.com/go-kit/kit/log/level"
@@ -22,6 +24,13 @@ func main() {
 	cfg, err := config.ParseConfig(logger, "")
 	if err != nil {
 		ExitOnErr(err, "creating config")
+
+	}
+	globalCtx := context.Background()
+
+	client, err := eth.NewClient(globalCtx, logger)
+	if err != nil {
+		ExitOnErr(err, "creating client")
 
 	}
 
@@ -59,6 +68,18 @@ func main() {
 				controller.Stop()
 			})
 		*/
+		// ethereum <-> iotex bridge.
+		ethBridgeTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
+		if err != nil {
+			ExitOnErr(err, "creating tsdb DB")
+		}
+		g.Add(func() error {
+			ethBridgeTXTracker.Start()
+			level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
+			return nil
+		}, func(error) {
+			ethBridgeTXTracker.Stop()
+		})
 	}
 
 	if err := g.Run(); err != nil {

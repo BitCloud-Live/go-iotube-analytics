@@ -1,0 +1,5 @@
+{
+    "EthereumBridge":{
+        "LogLevel": "debug"
+    }
+}

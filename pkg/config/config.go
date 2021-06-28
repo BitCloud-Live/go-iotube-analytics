@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/db"
-	"github.com/IoTube-analytics/go-iotube-analytics/pkg/ethereum"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web"
 	"github.com/go-kit/kit/log"
@@ -18,10 +18,11 @@ import (
 )
 
 // Config is the top-level configuration that holds configs for all components.
+
 type Config struct {
-	Web      web.Config
-	Ethereum ethereum.Config
-	Db       db.Config
+	Web            web.Config
+	EthereumBridge iotexeth.Config
+	Db             db.Config
 	// EnvFile location that include all private details like private key etc.
 	EnvFile string `json:"envFile"`
 }
@@ -37,11 +38,11 @@ var DefaultConfig = Config{
 		Path:          "db",
 		RemoteTimeout: format.Duration{Duration: 5 * time.Second},
 	},
-	Ethereum: ethereum.Config{
+	EthereumBridge: iotexeth.Config{
 		LogLevel: "info",
 		Timeout:  3000,
 	},
-	EnvFile: "configs/.env",
+	EnvFile: ".env",
 }
 
 func ParseConfig(logger log.Logger, path string) (*Config, error) {

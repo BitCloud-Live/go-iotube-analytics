@@ -1,4 +1,4 @@
-package ethereum
+package iotexeth
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/contracts/erc20"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	typ "github.com/IoTube-analytics/go-iotube-analytics/pkg/types"
+	"github.com/davecgh/go-spew/spew"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,7 +46,6 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 		return nil, errors.Wrap(err, "apply filter logger")
 	}
 	logger = log.With(filterLog, "component", ComponentName)
-	ctx, cncl := context.WithCancel(ctx)
 
 	// promqlEngine
 	opts := promql.EngineOpts{
@@ -60,11 +60,12 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 	engine := promql.NewEngine(opts)
 
 	// Getting tokens.
-	tokens, err := getTokenList(client)
+	tokens, err := getTokenList(client, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}
-
+	level.Debug(logger).Log("msg", "supported tokens", "list", spew.Sdump(tokens))
+	ctx, cncl := context.WithCancel(ctx)
 	return &TransactionTracker{
 		logger: logger,
 		cfg:    cfg,
@@ -79,11 +80,11 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 
 func (tt *TransactionTracker) Stop() {
 	tt.cncl()
-	level.Debug(tt.logger).Log("msg", "ethereum watcher stopped")
+	level.Debug(tt.logger).Log("msg", "eth tx tracker stopped")
 }
 
 func (tt *TransactionTracker) Start() error {
-	level.Debug(tt.logger).Log("msg", "ethereum watcher started")
+	level.Debug(tt.logger).Log("msg", "eth tx tracker started")
 	// Ethereum blocktime ticker.
 	ticker := time.NewTicker(20 * time.Second)
 	for {
@@ -110,7 +111,6 @@ func (tt *TransactionTracker) Start() error {
 		if err != nil {
 			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
 			level.Info(tt.logger).Log("msg", "watching ethereum blockchain for the first time")
-
 		} else {
 			// Look ahead one block to make sure we didn't miss any new invoices.
 			fromBlockNo = lastCheckedBlockNo
@@ -172,10 +172,11 @@ func (tt *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.T
 		for _, tx := range block.Transactions() {
 			symbol := "ETH"
 			var amount float64
-			if tx.To() == nil {
-				// Skip on a contract creation tx.
+			if tx.To() == nil || tx.To().String() != TokenCashierAddress.String() {
+				// We only want tx to the Token Cashier contract.
 				continue
 			}
+
 			erc20, ok := tt.tokens[tx.To().Hex()]
 			if ok {
 				level.Debug(tt.logger).Log("msg",
@@ -201,7 +202,8 @@ func (tt *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ.T
 					)
 					return nil, err
 				}
-				amount, _ = new(big.Float).Quo(_amount, big.NewFloat(math.Pow10(18))).Float64()
+				amount, _ = new(big.Float).
+					Quo(_amount, big.NewFloat(math.Pow10(18))).Float64()
 			}
 
 			msg, err := tx.AsMessage(types.NewEIP155Signer(tx.ChainId()), nil)

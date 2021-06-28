@@ -1,4 +1,4 @@
-package ethereum
+package iotexeth
 
 import (
 	"math"
@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	log "github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 )
 
@@ -18,13 +19,13 @@ type ERC20 struct {
 }
 
 // getTokenList gathers a map of: token address -> token symbol.
-func getTokenList(client *ethclient.Client) (map[string]ERC20, error) {
+func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20, error) {
 	// Getting standard token list.
 	tokenListCaller, err := tokenList.NewTokenListCaller(StandardTokenListAddress, client)
 	if err != nil {
 		return nil, err
 	}
-	standardTokens, err := tokenListCaller.GetActiveItems(&bind.CallOpts{}, nil, 0)
+	standardTokens, err := tokenListCaller.GetActiveItems(&bind.CallOpts{}, big.NewInt(0), 10)
 	if err != nil {
 		return nil, err
 	}
@@ -33,12 +34,16 @@ func getTokenList(client *ethclient.Client) (map[string]ERC20, error) {
 	if err != nil {
 		return nil, err
 	}
-	proxyTokens, err := proxyTokenListCaller.GetActiveItems(&bind.CallOpts{}, nil, 0)
+	proxyTokens, err := proxyTokenListCaller.GetActiveItems(&bind.CallOpts{}, big.NewInt(0), 10)
 	if err != nil {
 		return nil, err
 	}
 	out := make(map[string]ERC20)
 	for _, t := range proxyTokens.Items {
+		// Skip on zero address!
+		if t == common.BigToAddress(big.NewInt(0)) {
+			continue
+		}
 		symbol, err := getTokenSymbol(client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token symbol")
@@ -50,6 +55,10 @@ func getTokenList(client *ethclient.Client) (map[string]ERC20, error) {
 		out[t.Hash().Hex()] = ERC20{Symbol: symbol, Decimals: decimals}
 	}
 	for _, t := range standardTokens.Items {
+		// Skip on zero address!
+		if t == common.BigToAddress(big.NewInt(0)) {
+			continue
+		}
 		symbol, err := getTokenSymbol(client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token symbol")

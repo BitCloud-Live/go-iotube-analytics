@@ -1,4 +1,4 @@
-package ethereum
+package iotexeth
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func NewTVLTracker(ctx context.Context, client *ethclient.Client, logger log.Log
 	engine := promql.NewEngine(opts)
 
 	// Getting tokens.
-	tokens, err := getTokenList(client)
+	tokens, err := getTokenList(client, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}
