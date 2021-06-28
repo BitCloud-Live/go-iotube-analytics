@@ -1,22 +1,27 @@
+// Copyright (c) The Tellor Authors.
+// Licensed under the MIT License.
+
 package web
 
-import "github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/pprof"
+	"strings"
+	"time"
 
-// import (
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/db"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/models"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations"
-// 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/openapi/swagger/restapi/operations/data"
-// 	"github.com/go-kit/kit/log"
-// 	"github.com/go-kit/kit/log/level"
-// 	"github.com/go-openapi/loads"
-// 	"github.com/go-openapi/runtime/middleware"
-// 	"github.com/pkg/errors"
-// 	"github.com/prometheus/tsdb"
-// )
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/storage"
+	"github.com/tellor-io/telliot/pkg/logging"
+	"github.com/tellor-io/telliot/pkg/web/api"
+)
 
 const ComponentName = "web"
 
@@ -27,121 +32,101 @@ type Config struct {
 	ReadTimeout format.Duration
 }
 
-// type resp struct {
-// 	Code    int
-// 	Message string
-// }
+type Web struct {
+	logger log.Logger
+	cfg    Config
+	ctx    context.Context
+	stop   context.CancelFunc
+	srv    *http.Server
+}
 
-// type Web struct {
-// 	db     *tsdb.DB
-// 	cfg    Config
-// 	logger log.Logger
-// 	api    *operations.PolydefiAPI
-// 	server *restapi.Server
-// }
+func New(logger log.Logger, ctx context.Context, tsDB storage.SampleAndChunkQueryable, cfg Config) (*Web, error) {
+	logger, err := logging.ApplyFilter(cfg.LogLevel, logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply filter logger")
+	}
+	router := route.New()
 
-// func New(cfg *Config, db db.DB, logger log.Logger) (*Web, error) {
-// 	// Creating the component logger.
-// 	filterLog, err := logging.ApplyFilter(*cfg, ComponentName, logger)
-// 	if err != nil {
-// 		return nil, errors.Wrap(err, "apply filter logger")
-// 	}
-// 	logger = log.With(filterLog, "component", ComponentName)
-// 	api, err := newApi()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	c := &Web{db: db,
-// 		logger: logger,
-// 		api:    api,
-// 		cfg:    cfg,
-// 	}
-// 	// Register the api.
-// 	c.register(api)
-// 	c.server = newServer(cfg, api)
-// 	return c, nil
-// }
+	router.Get("/debug/*subpath", serveDebug)
+	router.Post("/debug/*subpath", serveDebug)
 
-// func (c *Web) register(api *operations.PolydefiAPI) {
-// 	api.DataGetAllDataHandler = data.GetAllDataHandlerFunc(c.GetAllData)
-// 	api.DataGetChartDataHandler = data.GetChartDataHandlerFunc(c.GetChartData)
-// }
+	router.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-// func newApi() (*operations.PolydefiAPI, error) {
-// 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return operations.NewPolydefiAPI(swaggerSpec), nil
+	opts := promql.EngineOpts{
+		Logger:               logger,
+		Reg:                  nil,
+		MaxSamples:           100000,
+		Timeout:              10 * time.Second,
+		EnableAtModifier:     true,
+		EnableNegativeOffset: true,
+	}
+	engine := promql.NewEngine(opts)
 
-// }
-// func newServer(cfg *config.Config, api *operations.PolydefiAPI) *restapi.Server {
-// 	server := restapi.NewServer(api)
-// 	server.ConfigureAPI()
-// 	server.EnabledListeners = []string{"http"}
-// 	server.Port = cfg.GetDefaultInt(config.PORT, 9876)
-// 	return server
-// }
+	api := api.New(logger, ctx, engine, tsDB)
+	api.Register(router.WithPrefix("/api/v1"))
 
-// func (c *Web) Start() error {
-// 	return c.server.Serve()
-// }
+	mux := http.NewServeMux()
+	mux.Handle("/", router)
 
-// func (c *Web) Stop() {
-// 	level.Debug(c.logger).Log("msg", "shutting down the controller")
-// 	c.server.Shutdown()
-// }
+	srv := &http.Server{
+		Handler:     mux,
+		ReadTimeout: cfg.ReadTimeout.Duration,
+		Addr:        fmt.Sprintf("%s:%d", cfg.ListenHost, cfg.ListenPort),
+	}
 
-// func (c *Web) GetAllData(params data.GetAllDataParams) middleware.Responder {
-// 	level.Debug(c.logger).Log("msg", "getting all data")
-// 	ds, err := c.db.GetLatestDefiData()
-// 	if err != nil {
-// 		level.Error(c.logger).Log("msg", "getting latest defi data", "err", err)
-// 		return data.NewGetAllDataNotFound().WithPayload(&models.APIResponse{
-// 			Message: "defi data not found",
-// 			Status:  "error",
-// 		})
-// 	}
+	ctx, stop := context.WithCancel(ctx)
 
-// 	return data.NewGetAllDataOK().WithPayload(convert(ds))
-// }
+	return &Web{
+		logger: log.With(logger, "component", ComponentName),
+		cfg:    cfg,
+		ctx:    ctx,
+		stop:   stop,
+		srv:    srv,
+	}, nil
 
-// func (c *Web) GetChartData(params data.GetChartDataParams) middleware.Responder {
-// 	level.Debug(c.logger).Log("msg", "getting all chart data")
-// 	chartData, err := c.db.GetChartData(params.Days)
-// 	if err != nil {
-// 		level.Error(c.logger).Log("msg", "getting all chart data from db", "err", err)
+}
 
-// 		return data.NewGetAllDataNotFound().WithPayload(&models.APIResponse{
-// 			Message: "chart data not found",
-// 			Status:  "error",
-// 		})
-// 	}
+func (self *Web) Start() error {
+	level.Info(self.logger).Log("msg", "starting", "addr", self.srv.Addr)
+	if err := self.srv.ListenAndServe(); err != http.ErrServerClosed {
+		return errors.Wrapf(err, "ListenAndServe")
+	}
+	return nil
+}
 
-// 	return data.NewGetChartDataOK().WithPayload(chartData)
-// }
+func (self *Web) Stop() {
+	self.stop()
+	if err := self.srv.Close(); err != nil {
+		level.Error(self.logger).Log("msg", "closing srv", "err", err)
+	}
+}
 
-// func convert(in []db.DefiData) models.AllData {
-// 	m := make(models.AllData, 0)
-// 	for _, i := range in {
-// 		m = append(m, &models.DefiData{
-// 			Category:            i.Category,
-// 			Chain:               i.Chain,
-// 			ContractNum:         i.ContractNum,
-// 			Holders:             i.Holders,
-// 			HoldersChange24hNum: i.HoldersChange24hNum,
-// 			LastUpdated:         i.CreatedAt.Unix(),
-// 			LockedUsd:           i.LockedUsd,
-// 			MarketCap:           i.MarketCap,
-// 			MarketCapChange24h:  i.MarketCapChange24h,
-// 			Name:                i.Name,
-// 			Price:               i.Price,
-// 			PriceChange24h:      i.PriceChange24h,
-// 			Token:               i.Token,
-// 			TvlPercentChange24h: i.TvlPercentChange24h,
-// 			Verified:            i.Verified,
-// 			Volume:              i.Volume,
-// 		})
-// 	}
-// 	return m
-// }
+func serveDebug(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	subpath := route.Param(ctx, "subpath")
+
+	if subpath == "/pprof" {
+		http.Redirect(w, req, req.URL.Path+"/", http.StatusMovedPermanently)
+		return
+	}
+
+	if !strings.HasPrefix(subpath, "/pprof/") {
+		http.NotFound(w, req)
+		return
+	}
+	subpath = strings.TrimPrefix(subpath, "/pprof/")
+
+	switch subpath {
+	case "cmdline":
+		pprof.Cmdline(w, req)
+	case "profile":
+		pprof.Profile(w, req)
+	case "symbol":
+		pprof.Symbol(w, req)
+	case "trace":
+		pprof.Trace(w, req)
+	default:
+		req.URL.Path = "/debug/pprof/" + subpath
+		pprof.Index(w, req)
+	}
+}

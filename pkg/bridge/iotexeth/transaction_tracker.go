@@ -28,6 +28,9 @@ import (
 	"github.com/go-kit/kit/log/level"
 )
 
+// We will track at most `ethBridgeTVLTracker` block before save the tx data to the tsdb.
+const blockLimitBeforeCommit = uint64(1000)
+
 type TransactionTracker struct {
 	logger log.Logger
 	cfg    Config
@@ -97,15 +100,6 @@ func (tt *TransactionTracker) Start() error {
 			fromBlockNo, toBlockNo *big.Int
 		)
 
-		// Calculating head block number minus 18.
-		header, err := tt.client.HeaderByNumber(tt.ctx, nil)
-		if err != nil {
-			level.Error(tt.logger).Log("msg", "getting latest block header", "err", err)
-			<-ticker.C
-			continue
-		}
-		toBlockNo = new(big.Int).Sub(header.Number, big.NewInt(18))
-
 		// Get last checked block number from the db.
 		lastCheckedBlockNo, err := bridge.LastCheckedBlockNo(tt.ctx, tt.engine, tt.db, "ethereum")
 		if err != nil {
@@ -114,10 +108,24 @@ func (tt *TransactionTracker) Start() error {
 		} else {
 			// Look ahead one block to make sure we didn't miss any new invoices.
 			fromBlockNo = lastCheckedBlockNo
-			if toBlockNo.Uint64() < lastCheckedBlockNo.Uint64() {
-				<-ticker.C
-				continue
-			}
+		}
+		// Calculating head block number minus 18.
+		header, err := tt.client.HeaderByNumber(tt.ctx, nil)
+		if err != nil {
+			level.Error(tt.logger).Log("msg", "getting latest block header", "err", err)
+			<-ticker.C
+			continue
+		}
+
+		// Min block to loop over.
+		min := math.Min(float64(fromBlockNo.Uint64()+blockLimitBeforeCommit),
+			float64(header.Number.Uint64()))
+		toBlockNo = big.NewInt(int64(min))
+
+		if toBlockNo.Cmp(fromBlockNo) == -1 {
+			level.Debug(tt.logger).Log("msg", "no new block to check, waiting...")
+			<-ticker.C
+			continue
 		}
 		level.Info(tt.logger).Log("msg", "checking for new transactions",
 			"fromBlockNo", fromBlockNo,

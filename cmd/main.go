@@ -11,6 +11,7 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth/eth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
@@ -57,29 +58,43 @@ func main() {
 		}()
 
 		// web Controller component.
-		/*
-			controller, err := web.New(cfg, db, logger)
-			if err != nil {
-				ExitOnErr(err, "creating controller")
-			}
-			g.Add(func() error {
-				return controller.Start()
-			}, func(error) {
-				controller.Stop()
-			})
-		*/
-		// ethereum <-> iotex bridge.
-		ethBridgeTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
+		controller, err := web.New(logger, globalCtx, tsDB, cfg.Web)
 		if err != nil {
-			ExitOnErr(err, "creating tsdb DB")
+			ExitOnErr(err, "creating web controller")
 		}
 		g.Add(func() error {
-			ethBridgeTXTracker.Start()
-			level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
-			return nil
+			return controller.Start()
 		}, func(error) {
-			ethBridgeTXTracker.Stop()
+			controller.Stop()
 		})
+
+		// ethereum <-> iotex bridge.
+		{
+			ethBridgeTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
+			if err != nil {
+				ExitOnErr(err, "creating tsdb DB")
+			}
+			g.Add(func() error {
+				ethBridgeTXTracker.Start()
+				level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
+				return nil
+			}, func(error) {
+				ethBridgeTXTracker.Stop()
+			})
+
+			// ethereum <-> iotex bridge.
+			ethBridgeTVLTracker, err := iotexeth.NewTVLTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
+			if err != nil {
+				ExitOnErr(err, "creating tsdb DB")
+			}
+			g.Add(func() error {
+				ethBridgeTVLTracker.Start()
+				level.Info(logger).Log("msg", "iotexeth tvl tracker shutdown complete")
+				return nil
+			}, func(error) {
+				ethBridgeTVLTracker.Stop()
+			})
+		}
 	}
 
 	if err := g.Run(); err != nil {

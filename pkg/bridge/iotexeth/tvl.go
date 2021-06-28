@@ -82,11 +82,6 @@ func (ew *TVLTracker) Start() error {
 	// Update tvl every 10 minutes by default.
 	ticker := time.NewTicker(10 * time.Minute)
 	for {
-		select {
-		case <-ew.ctx.Done():
-			return nil
-		default:
-		}
 		tvlData := make([]typ.TVLData, 0)
 		for addr, erc20 := range ew.tokens {
 			tvl, err := getTVL(ew.client, common.HexToAddress(addr))
@@ -104,7 +99,13 @@ func (ew *TVLTracker) Start() error {
 		if err != nil {
 			level.Error(ew.logger).Log("msg", "recording tvl", "err", err)
 		}
-		<-ticker.C
+		level.Info(ew.logger).Log("msg", "tvl data updated")
+		select {
+		case <-ew.ctx.Done():
+			return nil
+		case <-ticker.C:
+			return nil
+		}
 	}
 }
 

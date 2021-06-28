@@ -29,9 +29,10 @@ type Config struct {
 
 var DefaultConfig = Config{
 	Web: web.Config{
-		LogLevel:   "info",
-		ListenHost: "", // Listen on all addresses.
-		ListenPort: 9090,
+		LogLevel:    "info",
+		ListenHost:  "", // Listen on all addresses.
+		ListenPort:  9090,
+		ReadTimeout: format.Duration{Duration: 10 * time.Second},
 	},
 	Db: db.Config{
 		LogLevel:      "info",
