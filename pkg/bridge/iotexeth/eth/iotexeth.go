@@ -10,6 +10,10 @@ var StandardTokenListAddress = common.HexToAddress("0x7c0bef36e1b1cbeb1f1a554130
 var ProxyTokenListAddress = common.HexToAddress("0x73ffdfc98983ad59fb441fc5fe855c1589e35b3e")
 
 const TokenCashierStartBlockNo = 11827391
+const TokenSafeStartBlockNo = 11827338
+
+// We will track at most `ethBridgeTVLTracker` block before save the tx data to the tsdb.
+const blockLimitBeforeCommit = uint64(1000)
 
 type Config struct {
 	LogLevel string

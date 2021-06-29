@@ -1,4 +1,4 @@
-package eth
+package iotexeth
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 
 const PrivateKeysEnvName = "ETH_PRIVATE_KEYS"
 const NodeURLEnvName = "NODE_URL"
-const ComponentName = "eth"
 
 func DecodeHex(s string) []byte {
 	b, err := hex.DecodeString(s)

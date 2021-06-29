@@ -13,6 +13,7 @@ require (
 	github.com/go-openapi/spec v0.20.3
 	github.com/go-openapi/strfmt v0.20.1
 	github.com/go-openapi/swag v0.19.15
+	github.com/iotexproject/iotex-antenna-go/v2 v2.5.0 // indirect
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/joho/godotenv v1.3.0
 	github.com/json-iterator/go v1.1.11
