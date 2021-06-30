@@ -1,5 +1,8 @@
 {
-    "EthereumBridge":{
+    "EthIoTeX":{
+        "LogLevel": "debug"
+    },
+    "IoTeXEth":{
         "LogLevel": "debug"
     }
 }

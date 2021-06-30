@@ -1,4 +1,4 @@
-package iotexeth
+package ethereum
 
 import (
 	"context"

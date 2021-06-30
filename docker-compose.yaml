@@ -1,0 +1,23 @@
+version: '3'
+services:
+  influxdb:
+    image: quay.io/influxdb/influxdb:v2.0.4
+    container_name: influxdb
+    environment:
+        - INFLUXDB_ADMIN_USER=${INFLUXDB_USERNAME}
+        - INFLUXDB_ADMIN_PASSWORD=${INFLUXDB_PASSWORD}
+    volumes:
+      - ./influxdbv2:/root/.influxdbv2
+    ports:
+      - "0.0.0.0:8086:8086"
+  influxdb_cli:
+    links:
+      - influxdb
+    image: quay.io/influxdb/influxdb:v2.0.4
+    entrypoint: influx setup --bucket my-bucket -t jhkh987y98hbnuiub -o my-org --username=hhio618 --password=narnia618 --host=http://influxdb:8086 -f
+
+    restart: on-failure:20
+    depends_on:
+      - influxdb
+volumes:
+  influxdbv2:

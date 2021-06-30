@@ -1,8 +1,8 @@
-package iotexeth
+package ethiotex
 
 import "github.com/ethereum/go-ethereum/common"
 
-const ComponentName = "iotexeth"
+const ComponentName = "ethiotex"
 
 var TokenCashierAddress = common.HexToAddress("0xa0fd7430852361931b23a31f84374ba3314e1682")
 var TokenSafeAddress = common.HexToAddress("0xc2e0f31d739cb3153ba5760a203b3bd7c27f0d7a")
@@ -13,7 +13,7 @@ const TokenCashierStartBlockNo = 11827391
 const TokenSafeStartBlockNo = 11827338
 
 // We will track at most `ethBridgeTVLTracker` block before save the tx data to the tsdb.
-const blockLimitBeforeCommit = uint64(1000)
+const blockLimitBeforeCommit = uint64(10000)
 
 type Config struct {
 	LogLevel string

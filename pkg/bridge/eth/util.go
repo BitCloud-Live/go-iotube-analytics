@@ -1,6 +1,7 @@
-package iotexeth
+package eth_bridge
 
 import (
+	"context"
 	"math"
 	"math/big"
 
@@ -19,9 +20,9 @@ type ERC20 struct {
 }
 
 // getTokenList gathers a map of: token address -> token symbol.
-func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20, error) {
+func GetTokenList(ctx context.Context, client *ethclient.Client, logger log.Logger, standardTokenListAddress, proxyTokenListAddress common.Address) (map[string]ERC20, error) {
 	// Getting standard token list.
-	tokenListCaller, err := tokenList.NewTokenListCaller(StandardTokenListAddress, client)
+	tokenListCaller, err := tokenList.NewTokenListCaller(standardTokenListAddress, client)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +31,7 @@ func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20
 		return nil, err
 	}
 	// Getting proxy token list.
-	proxyTokenListCaller, err := tokenList.NewTokenListCaller(ProxyTokenListAddress, client)
+	proxyTokenListCaller, err := tokenList.NewTokenListCaller(proxyTokenListAddress, client)
 	if err != nil {
 		return nil, err
 	}
@@ -44,11 +45,11 @@ func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20
 		if t == common.BigToAddress(big.NewInt(0)) {
 			continue
 		}
-		symbol, err := getTokenSymbol(client, t)
+		symbol, err := GetTokenSymbol(ctx, client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token symbol")
 		}
-		decimals, err := getTokenDecimals(client, t)
+		decimals, err := GetTokenDecimals(ctx, client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token decimals")
 		}
@@ -59,11 +60,11 @@ func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20
 		if t == common.BigToAddress(big.NewInt(0)) {
 			continue
 		}
-		symbol, err := getTokenSymbol(client, t)
+		symbol, err := GetTokenSymbol(ctx, client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token symbol")
 		}
-		decimals, err := getTokenDecimals(client, t)
+		decimals, err := GetTokenDecimals(ctx, client, t)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't fetch token decimals")
 		}
@@ -73,18 +74,18 @@ func getTokenList(client *ethclient.Client, logger log.Logger) (map[string]ERC20
 
 }
 
-func getTVL(client *ethclient.Client, token common.Address) (float64, error) {
+func GetTVL(ctx context.Context, client *ethclient.Client, tokenAddress, tokenSafeAddress common.Address) (float64, error) {
 	// Getting standard token list.
-	erc20Caller, err := erc20.NewErc20Caller(token, client)
+	erc20Caller, err := erc20.NewErc20Caller(tokenAddress, client)
 	if err != nil {
 		return 0, err
 
 	}
-	balance, err := erc20Caller.BalanceOf(&bind.CallOpts{}, TokenSafeAddress)
+	balance, err := erc20Caller.BalanceOf(&bind.CallOpts{Context: ctx}, tokenSafeAddress)
 	if err != nil {
 		return 0, errors.Wrap(err, "can't fetch token balance")
 	}
-	decimals, err := getTokenDecimals(client, token)
+	decimals, err := GetTokenDecimals(ctx, client, tokenAddress)
 	if err != nil {
 		return 0, errors.Wrap(err, "can't fetch token decimals")
 	}
@@ -94,7 +95,7 @@ func getTVL(client *ethclient.Client, token common.Address) (float64, error) {
 	return amount, nil
 }
 
-func getTokenSymbol(client *ethclient.Client, token common.Address) (string, error) {
+func GetTokenSymbol(ctx context.Context, client *ethclient.Client, token common.Address) (string, error) {
 	// Getting token symbol.
 	erc20Caller, err := erc20.NewErc20Caller(token, client)
 	if err != nil {
@@ -104,7 +105,7 @@ func getTokenSymbol(client *ethclient.Client, token common.Address) (string, err
 	return erc20Caller.Symbol(&bind.CallOpts{})
 }
 
-func getTokenDecimals(client *ethclient.Client, token common.Address) (uint8, error) {
+func GetTokenDecimals(ctx context.Context, client *ethclient.Client, token common.Address) (uint8, error) {
 	// Getting token decimals.
 	erc20Caller, err := erc20.NewErc20Caller(token, client)
 	if err != nil {

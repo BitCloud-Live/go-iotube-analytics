@@ -7,16 +7,18 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth"
-	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/iotexeth/eth"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/ethiotex"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/ethereum"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-kit/kit/log/level"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
-
-	"github.com/prometheus/prometheus/tsdb"
 )
 
 func main() {
@@ -29,71 +31,97 @@ func main() {
 	}
 	globalCtx := context.Background()
 
-	client, err := eth.NewClient(globalCtx, logger)
+	// Ethereum client.
+	client, err := ethereum.NewClient(globalCtx, logger)
 	if err != nil {
 		ExitOnErr(err, "creating client")
+
+	}
+	// IoTeX babel api client.
+	babelClient, err := ethclient.DialContext(globalCtx, iotexeth.BabelHost)
+	if err != nil {
+		ExitOnErr(err, "creating client")
+
+	}
+
+	// Influxdb client.
+	tsdb := influxdb2.NewClient(os.Getenv("INFLUXDB_URL"), os.Getenv("INFLUXDB_TOKEN"))
+	// always close client at the end
+	defer client.Close()
+	if err != nil {
+		ExitOnErr(err, "creating influxdb client")
 
 	}
 
 	var g run.Group
 	{
 		g.Add(run.SignalHandler(context.Background(), syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM))
-
-		// Open the TSDB database.
-		tsdbOptions := tsdb.DefaultOptions()
-		// tsdbOptions.RetentionDuration = int64(2 * 24 * time.Hour / time.Millisecond)
-		if err := os.MkdirAll(cfg.Db.Path, 0777); err != nil {
-			ExitOnErr(err, "creating tsdb DB folder")
-		}
-		tsDB, err := tsdb.Open(cfg.Db.Path, nil, nil, tsdbOptions)
+		store, err := bridge.NewSore(globalCtx, logger, cfg.Bridge, tsdb)
 		if err != nil {
-			ExitOnErr(err, "creating tsdb DB")
+			ExitOnErr(err, "creating bridge store")
 		}
-		level.Info(logger).Log("msg", "opened local db", "path", cfg.Db.Path)
 
-		defer func() {
-			if err := tsDB.Close(); err != nil {
-				level.Error(logger).Log("msg", "closing the tsdb", "err", err)
-			}
-		}()
-
-		// web Controller component.
-		controller, err := web.New(logger, globalCtx, tsDB, cfg.Web)
+		// web api component.
+		web, err := web.New(logger, globalCtx, tsdb, cfg.Web)
 		if err != nil {
 			ExitOnErr(err, "creating web controller")
 		}
 		g.Add(func() error {
-			return controller.Start()
+			return web.Start()
 		}, func(error) {
-			controller.Stop()
+			web.Stop()
 		})
 
-		// ethereum <-> iotex bridge.
+		// Ethereum bridge
 		{
-			ethBridgeTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
-			if err != nil {
-				ExitOnErr(err, "creating tsdb DB")
-			}
-			g.Add(func() error {
-				ethBridgeTXTracker.Start()
-				level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
-				return nil
-			}, func(error) {
-				ethBridgeTXTracker.Stop()
-			})
+			// Ethereum part.
+			{
+				if true {
+					// ethereum tx tracker.
+					ethTXTracker, err := ethiotex.NewTransactionTracker(globalCtx, client, logger, cfg.EthIoTeX, store)
+					if err != nil {
+						ExitOnErr(err, "creating ethTXTracker")
+					}
+					g.Add(func() error {
+						ethTXTracker.Start()
+						level.Info(logger).Log("msg", "ethiotex tx tracker shutdown complete")
+						return nil
+					}, func(error) {
+						ethTXTracker.Stop()
+					})
 
-			// ethereum <-> iotex bridge.
-			ethBridgeTVLTracker, err := iotexeth.NewTVLTracker(globalCtx, client, logger, cfg.EthereumBridge, tsDB)
-			if err != nil {
-				ExitOnErr(err, "creating tsdb DB")
+					// ethereum tvl tracker.
+					if true {
+						ethTVLTracker, err := ethiotex.NewTVLTracker(globalCtx, client, logger, cfg.EthIoTeX, store)
+						if err != nil {
+							ExitOnErr(err, "creating ethTVLTracker")
+						}
+						g.Add(func() error {
+							ethTVLTracker.Start()
+							level.Info(logger).Log("msg", "ethiotex tvl tracker shutdown complete")
+							return nil
+						}, func(error) {
+							ethTVLTracker.Stop()
+						})
+					}
+				}
 			}
-			g.Add(func() error {
-				ethBridgeTVLTracker.Start()
-				level.Info(logger).Log("msg", "iotexeth tvl tracker shutdown complete")
-				return nil
-			}, func(error) {
-				ethBridgeTVLTracker.Stop()
-			})
+			// iotex part.
+			if true {
+				// ethereum tx tracker.
+				iotexTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXEth, store)
+				if err != nil {
+					ExitOnErr(err, "creating ethBridgeTXTracker")
+				}
+				g.Add(func() error {
+					iotexTXTracker.Start()
+					level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
+					return nil
+				}, func(error) {
+					iotexTXTracker.Stop()
+				})
+
+			}
 		}
 	}
 

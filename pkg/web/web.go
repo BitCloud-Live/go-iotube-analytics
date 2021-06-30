@@ -7,20 +7,16 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/pprof"
-	"strings"
-	"time"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web/api"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/route"
-	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/storage"
+	"github.com/rs/cors"
 	"github.com/tellor-io/telliot/pkg/logging"
-	"github.com/tellor-io/telliot/pkg/web/api"
 )
 
 const ComponentName = "web"
@@ -40,34 +36,23 @@ type Web struct {
 	srv    *http.Server
 }
 
-func New(logger log.Logger, ctx context.Context, tsDB storage.SampleAndChunkQueryable, cfg Config) (*Web, error) {
+func New(logger log.Logger, ctx context.Context, tsDB influxdb2.Client, cfg Config) (*Web, error) {
 	logger, err := logging.ApplyFilter(cfg.LogLevel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply filter logger")
 	}
 	router := route.New()
 
-	router.Get("/debug/*subpath", serveDebug)
-	router.Post("/debug/*subpath", serveDebug)
-
-	router.Get("/metrics", promhttp.Handler().ServeHTTP)
-
-	opts := promql.EngineOpts{
-		Logger:               logger,
-		Reg:                  nil,
-		MaxSamples:           100000,
-		Timeout:              10 * time.Second,
-		EnableAtModifier:     true,
-		EnableNegativeOffset: true,
-	}
-	engine := promql.NewEngine(opts)
-
-	api := api.New(logger, ctx, engine, tsDB)
+	api := api.New(logger, ctx, tsDB)
 	api.Register(router.WithPrefix("/api/v1"))
 
 	mux := http.NewServeMux()
-	mux.Handle("/", router)
 
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+	})
+	mux.Handle("/", c.Handler(router))
 	srv := &http.Server{
 		Handler:     mux,
 		ReadTimeout: cfg.ReadTimeout.Duration,
@@ -98,35 +83,5 @@ func (self *Web) Stop() {
 	self.stop()
 	if err := self.srv.Close(); err != nil {
 		level.Error(self.logger).Log("msg", "closing srv", "err", err)
-	}
-}
-
-func serveDebug(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-	subpath := route.Param(ctx, "subpath")
-
-	if subpath == "/pprof" {
-		http.Redirect(w, req, req.URL.Path+"/", http.StatusMovedPermanently)
-		return
-	}
-
-	if !strings.HasPrefix(subpath, "/pprof/") {
-		http.NotFound(w, req)
-		return
-	}
-	subpath = strings.TrimPrefix(subpath, "/pprof/")
-
-	switch subpath {
-	case "cmdline":
-		pprof.Cmdline(w, req)
-	case "profile":
-		pprof.Profile(w, req)
-	case "symbol":
-		pprof.Symbol(w, req)
-	case "trace":
-		pprof.Trace(w, req)
-	default:
-		req.URL.Path = "/debug/pprof/" + subpath
-		pprof.Index(w, req)
 	}
 }

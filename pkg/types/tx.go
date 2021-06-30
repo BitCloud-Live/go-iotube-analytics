@@ -1,19 +1,27 @@
 package types
 
-type Network string
+type Bridge string
 
 const (
-	NetEthereum Network = "ethereum"
+	EthereumIoteX Bridge = "eth<->iotex"
+)
+
+type BridgeSide string
+
+const (
+	FromLeft  BridgeSide = "left"
+	FromRight BridgeSide = "right"
 )
 
 type Transaction struct {
-	From      string
-	To        string
-	Hash      string
-	BlockNo   uint64
-	Network   Network
-	Amount    float64
-	Symbol    string
-	Deposit   bool
-	Timestamp uint64
+	From       string
+	To         string
+	Hash       string
+	BlockNo    uint64
+	Bridge     Bridge
+	Amount     float64
+	BridgeSide BridgeSide
+	Symbol     string
+	Deposit    bool
+	Timestamp  uint64
 }
