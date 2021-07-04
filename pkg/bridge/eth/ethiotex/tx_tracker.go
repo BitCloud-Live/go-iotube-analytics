@@ -208,7 +208,7 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 			To:         iter.Event.Recipient.String(),
 			Symbol:     symbol,
 			Bridge:     typ.EthereumIoteX,
-			BridgeSide: typ.FromRight,
+			BridgeSide: typ.FromLeft,
 			From:       iter.Event.Sender.String(),
 			Timestamp:  block.Header().Time,
 		}

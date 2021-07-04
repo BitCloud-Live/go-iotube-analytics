@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
@@ -203,7 +202,7 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 		if err != nil {
 			return nil, errors.Wrap(err, "getting block by number")
 		}
-		symbol = strings.TrimPrefix(symbol, "io")
+
 		tx := typ.Transaction{
 			Amount:     amount,
 			BlockNo:    block.Header().Number.Uint64(),
@@ -211,12 +210,11 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 			To:         iter.Event.Recipient.String(),
 			Symbol:     symbol,
 			Bridge:     typ.EthereumIoteX,
-			BridgeSide: typ.FromLeft,
+			BridgeSide: typ.FromRight,
 			From:       iter.Event.Sender.String(),
 			Timestamp:  block.Header().Time,
 		}
 		txs = append(txs, tx)
 	}
-
 	return txs, nil
 }

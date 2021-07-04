@@ -3,7 +3,7 @@ package types
 type Bridge string
 
 const (
-	EthereumIoteX Bridge = "eth<->iotex"
+	EthereumIoteX Bridge = "ethereum"
 )
 
 type BridgeSide string

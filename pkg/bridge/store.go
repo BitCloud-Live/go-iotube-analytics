@@ -78,7 +78,8 @@ func (self *Store) RecordTxs(txs []types.Transaction) error {
 		p := influxdb2.NewPointWithMeasurement("tx").
 			AddTag("bridge", string(tx.Bridge)).
 			AddTag("bridge_side", string(tx.BridgeSide)).
-			AddTag("symbol", string(tx.Symbol)).
+			AddTag("symbol", CanonicalSymbolName(string(tx.Symbol))).
+			AddTag("from", string(tx.From)).
 			AddField("amount", tx.Amount).
 			SetTime(time.Unix(int64(tx.Timestamp), 0))
 		err := self.writeAPI.WritePoint(context.Background(), p)
