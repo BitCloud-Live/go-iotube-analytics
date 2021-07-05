@@ -12,6 +12,7 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/db"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/price"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -25,6 +26,7 @@ type Config struct {
 	Web      web.Config
 	EthIoTeX ethiotex.Config
 	IoTeXEth iotexeth.Config
+	Price    price.Config
 	Db       db.Config
 	Bridge   bridge.Config
 	// EnvFile location that include all private details like private key etc.
@@ -50,6 +52,9 @@ var DefaultConfig = Config{
 	IoTeXEth: iotexeth.Config{
 		LogLevel: "info",
 		Timeout:  3000,
+	},
+	Price: price.Config{
+		LogLevel: "debug",
 	},
 	Bridge: bridge.Config{
 		LogLevel: "info",

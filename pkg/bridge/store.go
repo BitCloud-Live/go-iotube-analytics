@@ -72,6 +72,31 @@ func (self *Store) LastCheckedBlockNo(network types.Network) (*big.Int, error) {
 	return nil, err
 }
 
+// GetAllSymbols returns all coin symbols from the db.
+func (self *Store) GetAllSymbols() ([]string, error) {
+	// Get parser flux query result
+	query := `from(bucket: "my-bucket")
+	|> range(start: -10d)
+	|> filter(fn: (r) => r["_measurement"] == "tvl")
+	|> filter(fn: (r) => r["_field"] == "tvl")
+	|> distinct(column: "symbol")`
+	result, err := self.readAPI.Query(context.Background(), query)
+
+	symbols := []string{}
+	if err == nil {
+		// Use Next() to iterate over query result lines.
+		for result.Next() {
+			// Read result.
+			symbol := result.Record().Value().(string)
+			symbols = append(symbols, symbol)
+		}
+		if result.Err() != nil {
+			return nil, result.Err()
+		}
+	}
+	return symbols, nil
+}
+
 func (self *Store) RecordTxs(txs []types.Transaction) error {
 	for _, tx := range txs {
 		// Create point using fluent style.
@@ -86,6 +111,19 @@ func (self *Store) RecordTxs(txs []types.Transaction) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (self *Store) RecordPrice(symbol string, price float64) error {
+	// Create point using fluent style.
+	p := influxdb2.NewPointWithMeasurement("price").
+		AddTag("symbol", symbol).
+		AddField("price", price).
+		SetTime(time.Now())
+	err := self.writeAPI.WritePoint(context.Background(), p)
+	if err != nil {
+		return err
 	}
 	return nil
 }

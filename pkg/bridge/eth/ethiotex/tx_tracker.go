@@ -71,7 +71,7 @@ func (self *TransactionTracker) Start() error {
 		select {
 		case <-self.ctx.Done():
 			return nil
-		default:
+		case <-ticker.C:
 		}
 		var (
 			fromBlockNo, toBlockNo *big.Int
@@ -90,7 +90,6 @@ func (self *TransactionTracker) Start() error {
 		header, err := self.client.HeaderByNumber(self.ctx, nil)
 		if err != nil {
 			level.Error(self.logger).Log("msg", "getting latest block header", "err", err)
-			<-ticker.C
 			continue
 		}
 
@@ -115,7 +114,6 @@ func (self *TransactionTracker) Start() error {
 				"fromBlockNo", fromBlockNo,
 				"toBlockNo", toBlockNo,
 			)
-			<-ticker.C
 			continue
 		}
 		level.Info(self.logger).Log("msg",
@@ -140,8 +138,6 @@ func (self *TransactionTracker) Start() error {
 				)
 			}
 		}
-
-		<-ticker.C
 	}
 }
 

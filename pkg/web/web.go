@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web/api"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -16,7 +17,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/route"
 	"github.com/rs/cors"
-	"github.com/tellor-io/telliot/pkg/logging"
 )
 
 const ComponentName = "web"

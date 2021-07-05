@@ -13,6 +13,7 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/ethereum"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/price"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/web"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-kit/kit/log/level"
@@ -70,6 +71,17 @@ func main() {
 			return web.Start()
 		}, func(error) {
 			web.Stop()
+		})
+
+		// Price tracker component.
+		price, err := price.New(logger, globalCtx, store, cfg.Price)
+		if err != nil {
+			ExitOnErr(err, "creating price tracker")
+		}
+		g.Add(func() error {
+			return price.Start()
+		}, func(error) {
+			price.Stop()
 		})
 
 		// Ethereum bridge

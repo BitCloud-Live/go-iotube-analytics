@@ -22,7 +22,7 @@ require (
 	github.com/prometheus/common v0.29.0
 	github.com/prometheus/prometheus v1.8.2-0.20210520210015-1838068db5df
 	github.com/rs/cors v1.7.0
-	github.com/tellor-io/telliot v0.0.0-20210625151718-42243c0808af
+	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e // indirect
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sys v0.0.0-20210616094352-59db8d763f22 // indirect
