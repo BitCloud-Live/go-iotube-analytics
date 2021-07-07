@@ -75,7 +75,7 @@ func (self *TVLTracker) Start() error {
 			}
 			tvlData = append(tvlData, typ.TVLData{
 				Value:   tvl,
-				Network: typ.NetEthereum,
+				Network: typ.NetPolygon,
 				Symbol:  erc20.Symbol,
 			})
 

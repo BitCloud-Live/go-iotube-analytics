@@ -20,9 +20,9 @@ Frontend overview:
 ![Front](assets/front.png "Front")
 ### Influxdb dashboard
 Influxdb dashboards are a great way to visualize data. Here we provided an influxdb dashboard as to query the time series and even craft new ideas based on time series.
-See this example [influxdb_ethiotex_board.json](assets/influxdb_ethiotex_board.json).
+See this example [influxdb_ethiotex_board.json](assets/influxdb_ethiotex_board.json).  
 InfluxDB dashboard overview:
-![influxdb-dashboard](assets/influx-dahboard.png "Influxdb dashboard")
+![influxdb-dashboard](assets/influx-dashboard.png "Influxdb dashboard")
 ## Quickstart 
 ### Setup required environment variables
 ```sh
@@ -45,7 +45,7 @@ For every bridge we tracks two main records.
 1. `depositTo` method calls to the cashier contract 
 2. Total value locked in token safe contract (we collect token data from token list contracts) 
 ### Store
-Store is the component responsible for saving bridge data to the influxdb. 
+[Store](pkg/bridge/store.go) is the component responsible for saving bridge data to the influxdb.
 ### Price tracker (Optional)
 Price tracker is responsible for retrieving price informations for different coin symbols. this will allow us to do aggregations on the influxdb side and results to faster overall aggregations for the `tvl` time series.
 

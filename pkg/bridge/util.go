@@ -31,6 +31,62 @@ type ERC20 struct {
 }
 
 // getTokenList gathers a map of: token address -> token symbol.
+func GetTokenListMethod2(ctx context.Context, client *ethclient.Client, logger log.Logger, standardTokenListAddress, proxyTokenListAddress common.Address, standardTokenListStart, proxyTokenListStart uint64) (map[string]ERC20, error) {
+	out := make(map[string]ERC20)
+	// Getting standard token list.
+	tokenListCaller, err := tokenList.NewTokenListFilterer(standardTokenListAddress, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting token list caller")
+	}
+	iter, err := tokenListCaller.FilterTokenAdded(&bind.FilterOpts{Start: standardTokenListStart}, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting standard token iter")
+	}
+	for iter.Next() {
+		// Skip on zero address!
+		if iter.Event.Token == common.BigToAddress(big.NewInt(0)) {
+			continue
+		}
+		symbol, err := GetTokenSymbol(ctx, client, iter.Event.Token)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't fetch token symbol")
+		}
+		decimals, err := GetTokenDecimals(ctx, client, iter.Event.Token)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't fetch token decimals")
+		}
+		out[iter.Event.Token.Hash().Hex()] = ERC20{Symbol: symbol, Decimals: decimals}
+	}
+	// Getting proxy token list.
+	proxyTokenListCaller, err := tokenList.NewTokenListFilterer(proxyTokenListAddress, client)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting proxy token caller")
+	}
+	iter, err = proxyTokenListCaller.FilterTokenAdded(&bind.FilterOpts{Start: proxyTokenListStart}, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting standard token iter")
+	}
+	for iter.Next() {
+		// Skip on zero address!
+		if iter.Event.Token == common.BigToAddress(big.NewInt(0)) {
+			continue
+		}
+		symbol, err := GetTokenSymbol(ctx, client, iter.Event.Token)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't fetch token symbol")
+		}
+		decimals, err := GetTokenDecimals(ctx, client, iter.Event.Token)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't fetch token decimals")
+		}
+		out[iter.Event.Token.Hash().Hex()] = ERC20{Symbol: symbol, Decimals: decimals}
+	}
+
+	return out, nil
+
+}
+
+// getTokenList gathers a map of: token address -> token symbol.
 func GetTokenList(ctx context.Context, client *ethclient.Client, logger log.Logger, standardTokenListAddress, proxyTokenListAddress common.Address) (map[string]ERC20, error) {
 	out := make(map[string]ERC20)
 	// Getting standard token list.

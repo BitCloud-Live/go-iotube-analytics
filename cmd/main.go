@@ -48,7 +48,7 @@ func main() {
 
 	}
 
-	// IoTeX babel api client.
+	// Polygon api client.
 	polygonClient, err := ethclient.DialContext(globalCtx, os.Getenv(polyiotex.NodeUrlKey))
 	if err != nil {
 		ExitOnErr(err, "creating polygon client")
@@ -95,10 +95,10 @@ func main() {
 		})
 
 		// Ethereum bridge
-		if false {
+		{
 			// Ethereum part.
 			{
-				if true {
+				{
 					// ethereum tx tracker.
 					ethTXTracker, err := ethiotex.NewTransactionTracker(globalCtx, client, logger, cfg.EthIoTeX, store)
 					if err != nil {
@@ -131,7 +131,7 @@ func main() {
 				}
 			}
 			// iotex part.
-			if true {
+			{
 				// ethereum tx tracker.
 				iotexEthTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXEth, store)
 				if err != nil {
@@ -153,7 +153,7 @@ func main() {
 		{
 			// Polygon part.
 			{
-				if true {
+				{
 					// Polygon tx tracker.
 					polyTXTracker, err := polyiotex.NewTransactionTracker(globalCtx, polygonClient, logger, cfg.PolyIoTeX, store)
 					if err != nil {
@@ -185,7 +185,7 @@ func main() {
 				}
 			}
 			// iotex part.
-			if false {
+			{
 				// ethereum tx tracker.
 				iotexPolyTXTracker, err := iotexpoly.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXPoly, store)
 				if err != nil {

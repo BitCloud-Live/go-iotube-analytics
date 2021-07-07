@@ -10,6 +10,8 @@ var ProxyTokenListAddress = common.HexToAddress("0xD757adFF0eC4060e2c4A15f977776
 
 // First deposit to the iotex blockchain.
 const TokenCashierStartBlockNo = 11426143
+const StandardTokenListAddressStartBlockNo = 11426024
+const ProxyTokenListAddressStartBlockNo = 11461992
 
 // We will track at most `ethBridgeTVLTracker` block before save the tx data to the tsdb.
 const blockLimitBeforeCommit = uint64(10000)

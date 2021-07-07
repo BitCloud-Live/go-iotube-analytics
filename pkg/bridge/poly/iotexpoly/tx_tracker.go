@@ -43,7 +43,7 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 	ctxGetToken, cnclGetToken := context.WithTimeout(ctx, 10*time.Second)
 	defer cnclGetToken()
 
-	tokens, err := bridge.GetTokenList(ctxGetToken, client, logger, StandardTokenListAddress, ProxyTokenListAddress)
+	tokens, err := bridge.GetTokenListMethod2(ctxGetToken, client, logger, StandardTokenListAddress, ProxyTokenListAddress, StandardTokenListAddressStartBlockNo, ProxyTokenListAddressStartBlockNo)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}

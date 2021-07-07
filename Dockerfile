@@ -12,5 +12,5 @@ RUN apk update && \
 WORKDIR /
 
 COPY --from=builder /src/server .
-EXPOSE 9876
+EXPOSE 9090
 CMD ["./server"]

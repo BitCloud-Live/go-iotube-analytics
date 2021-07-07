@@ -84,6 +84,11 @@ func (self *PriceTracker) Start() error {
 
 		level.Debug(self.logger).Log("msg", "updating prices", "symbols", spew.Sdump(symbols))
 		for _, symbol := range symbols {
+			select {
+			case <-self.ctx.Done():
+				return errors.New("context canceled")
+			default:
+			}
 			ctx, cncl := context.WithTimeout(self.ctx, 2*time.Second)
 			defer cncl()
 			price, err := Fetch(ctx, symbolToIds[strings.ToLower(symbol)])
