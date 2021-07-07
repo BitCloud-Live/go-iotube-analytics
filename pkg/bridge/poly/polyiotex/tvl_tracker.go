@@ -34,8 +34,10 @@ func NewTVLTracker(ctx context.Context, client *ethclient.Client, logger log.Log
 	}
 	logger = log.With(filterLog, "component", ComponentName)
 	// Getting tokens.
-	ctx1, _ := context.WithTimeout(ctx, 10*time.Second)
-	tokens, err := bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, MintableTokenListAddress)
+	ctxGetToken, cnclGetToken := context.WithTimeout(ctx, 10*time.Second)
+	defer cnclGetToken()
+
+	tokens, err := bridge.GetTokenList(ctxGetToken, client, logger, StandardTokenListAddress, MintableTokenListAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}

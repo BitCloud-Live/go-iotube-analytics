@@ -85,9 +85,7 @@ go-lint: check-git deps $(GOLANGCI_LINT) $(FAILLINT) $(MISSPELL)
 	@echo ">> linting all of the Go files GOGC=${GOGC}"
 	@$(GOLANGCI_LINT) run
 	@echo ">> detecting misspells"
-	@find . -type f | grep -v pkg/contracts/tellor | grep -v pkg/contracts/lens | grep -v tmp | grep -v go.sum | grep -vE '\./\..*' | xargs $(MISSPELL) -error
-	@echo ">> ensuring Copyright headers"
-	@go run ./scripts/copyright
+	@find . -type f | grep -v pkg/contracts/ | grep -v tmp | grep -v go.sum | grep -vE '\./\..*' | xargs $(MISSPELL) -error
 	$(call require_clean_work_tree,'detected files without copyright, run make lint and commit changes')
 
 
@@ -122,7 +120,7 @@ build: export GIT_HASH=$(shell git rev-parse --short HEAD)
 build:
 	@[ "${GIT_TAG}" ] || ( echo ">> GIT_TAG is not set"; exit 1 )
 	@[ "${GIT_HASH}" ] || ( echo ">> GIT_HASH is not set"; exit 1 )
-	go build -ldflags "-X main.GitTag=$(GIT_TAG) -X main.GitHash=$(GIT_HASH) -s -w" ./cmd
+	go build -ldflags "-X main.GitTag=$(GIT_TAG) -X main.GitHash=$(GIT_HASH) -s -w" -o server ./cmd
 
 
 
