@@ -32,7 +32,11 @@ $ cp env.example .env # edit and add postgres credentials
 ```sh
 $ docker-compose up -d --build 
 ```
-
+### Build manually
+```sh
+$ make lint # (optional)
+$ make build
+```
 ## How it works!
 Here are brief explanations about different components of this project.
 ### Bridge trackers
