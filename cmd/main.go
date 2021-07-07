@@ -105,11 +105,12 @@ func main() {
 						ExitOnErr(err, "creating ethTXTracker")
 					}
 					g.Add(func() error {
-						ethTXTracker.Start()
-						level.Info(logger).Log("msg", "ethiotex tx tracker shutdown complete")
-						return nil
+						level.Info(logger).Log("msg", "ethiotex tx tracker started")
+						return ethTXTracker.Start()
 					}, func(error) {
 						ethTXTracker.Stop()
+						level.Info(logger).Log("msg", "ethiotex tx tracker shutdown complete")
+
 					})
 
 					// ethereum tvl tracker.
@@ -119,11 +120,12 @@ func main() {
 							ExitOnErr(err, "creating ethTVLTracker")
 						}
 						g.Add(func() error {
-							ethTVLTracker.Start()
-							level.Info(logger).Log("msg", "ethiotex tvl tracker shutdown complete")
-							return nil
+							level.Info(logger).Log("msg", "ethiotex tvl tracker started")
+							return ethTVLTracker.Start()
 						}, func(error) {
 							ethTVLTracker.Stop()
+							level.Info(logger).Log("msg", "ethiotex tvl tracker shutdown complete")
+
 						})
 					}
 				}
@@ -136,11 +138,12 @@ func main() {
 					ExitOnErr(err, "creating iotexEthTXTracker")
 				}
 				g.Add(func() error {
-					iotexEthTXTracker.Start()
-					level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
-					return nil
+
+					level.Info(logger).Log("msg", "iotexeth tx tracker started")
+					return iotexEthTXTracker.Start()
 				}, func(error) {
 					iotexEthTXTracker.Stop()
+					level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
 				})
 
 			}
@@ -157,11 +160,11 @@ func main() {
 						ExitOnErr(err, "creating polyTXTracker")
 					}
 					g.Add(func() error {
-						polyTXTracker.Start()
-						level.Info(logger).Log("msg", "polyiotex tx tracker shutdown complete")
-						return nil
+						level.Info(logger).Log("msg", "polyiotex tx tracker started")
+						return polyTXTracker.Start()
 					}, func(error) {
 						polyTXTracker.Stop()
+						level.Info(logger).Log("msg", "polyiotex tx tracker shutdown complete")
 					})
 
 					// Polygon tvl tracker.
@@ -171,11 +174,12 @@ func main() {
 							ExitOnErr(err, "creating polyTVLTracker")
 						}
 						g.Add(func() error {
-							polyTVLTracker.Start()
-							level.Info(logger).Log("msg", "polyiotex tvl tracker shutdown complete")
-							return nil
+
+							level.Info(logger).Log("msg", "polyiotex tvl tracker started")
+							return polyTVLTracker.Start()
 						}, func(error) {
 							polyTVLTracker.Stop()
+							level.Info(logger).Log("msg", "polyiotex tvl tracker shutdown complete")
 						})
 					}
 				}
@@ -188,13 +192,12 @@ func main() {
 					ExitOnErr(err, "creating iotexPolyTXTracker")
 				}
 				g.Add(func() error {
-					iotexPolyTXTracker.Start()
-					level.Info(logger).Log("msg", "iotexpoly tx tracker shutdown complete")
-					return nil
+					level.Info(logger).Log("msg", "iotexpoly tx tracker started")
+					return iotexPolyTXTracker.Start()
 				}, func(error) {
 					iotexPolyTXTracker.Stop()
+					level.Info(logger).Log("msg", "iotexpoly tx tracker shutdown complete")
 				})
-
 			}
 		}
 	}

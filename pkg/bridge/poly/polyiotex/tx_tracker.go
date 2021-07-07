@@ -39,8 +39,10 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 	}
 	logger = log.With(filterLog, "component", ComponentName)
 	// Getting tokens.
-	ctx1, _ := context.WithTimeout(ctx, 10*time.Second)
-	tokens, err := bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, MintableTokenListAddress)
+	ctxGetToken, cnclGetToken := context.WithTimeout(ctx, 10*time.Second)
+	defer cnclGetToken()
+
+	tokens, err := bridge.GetTokenList(ctxGetToken, client, logger, StandardTokenListAddress, MintableTokenListAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}
@@ -147,7 +149,8 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 	if err != nil {
 		return nil, errors.Wrap(err, "getting tokenCashierFilterer")
 	}
-	ctx, _ := context.WithTimeout(self.ctx, 10*time.Second)
+	ctx, cncl := context.WithTimeout(self.ctx, 10*time.Second)
+	defer cncl()
 	level.Info(self.logger).Log("msg",
 		"filtering Receipt events",
 	)
@@ -166,19 +169,21 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 	for iter.Next() {
 		select {
 		case <-self.ctx.Done():
-			return nil, errors.New("context cancelled")
+			return nil, errors.New("context canceled")
 		default:
 		}
 
 		level.Info(self.logger).Log("msg",
 			"handle event", "event", iter.Event.Raw.TxHash.String(),
 		)
-		ctx, _ := context.WithTimeout(self.ctx, 2*time.Second)
+		ctx, cncl := context.WithTimeout(self.ctx, 2*time.Second)
+		defer cncl()
 		decimals, err := bridge.GetTokenDecimals(ctx, self.client, iter.Event.Token)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting token symbol")
 		}
-		ctx, _ = context.WithTimeout(self.ctx, 2*time.Second)
+		ctx, cncl = context.WithTimeout(self.ctx, 2*time.Second)
+		defer cncl()
 		symbol, err := bridge.GetTokenSymbol(ctx, self.client, iter.Event.Token)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting token symbol")

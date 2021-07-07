@@ -84,12 +84,14 @@ func (self *PriceTracker) Start() error {
 
 		level.Debug(self.logger).Log("msg", "updating prices", "symbols", spew.Sdump(symbols))
 		for _, symbol := range symbols {
-			ctx, _ := context.WithTimeout(self.ctx, 2*time.Second)
+			ctx, cncl := context.WithTimeout(self.ctx, 2*time.Second)
+			defer cncl()
 			price, err := Fetch(ctx, symbolToIds[strings.ToLower(symbol)])
 			if err != nil {
 				level.Error(self.logger).Log("msg", "fetching price from api", "symbol", symbol, "err", err)
 				continue
 			}
+
 			level.Debug(self.logger).Log("msg", "recording price", "price", price)
 			err = self.store.RecordPrice(symbol, price)
 			if err != nil {
@@ -98,7 +100,7 @@ func (self *PriceTracker) Start() error {
 		}
 		select {
 		case <-self.ctx.Done():
-			return errors.New("context cancelled")
+			return errors.New("context canceled")
 		case <-ticker.C:
 		}
 	}
