@@ -1,6 +1,7 @@
 ![checks](https://github.com/IoTube-analytics/go-iotube-analytics/actions/workflows/checks.yml/badge.svg)
 ![docker](https://github.com/IoTube-analytics/go-iotube-analytics/actions/workflows/docker.yml/badge.svg)
-![release](https://github.com/IoTube-analytics/go-iotube-analytics/actions/workflows/release.yml/badge.svg)
+![release](https://github.com/IoTube-analytics/go-iotube-analytics/actions/workflows/release.yml/badge.svg)  
+### Dashboard: https://IoTube-analytics.github.io/react-iotube-analytics
 # Go Iotube analytics
 A fast, lightweight [Iotube](https://tube.iotex.io/) bridge analytics and API.
 ## Features
@@ -15,7 +16,7 @@ This project uses [InfluxDB](https://influxdb.com) to save the time series data.
 
 ## Frontends
 ### React frontend
-A react frontend was developed to show statistics to the end user. see dashboard [here](https://IoTube-analytics.github.io/react-iotube-analytics), source codes are available [here](https://github.com/IoTube-analytics/react-iotube-analytics).  
+A react frontend was developed to show statistics to the end user. see dashboard [here](https://IoTube-analytics.github.io/react-iotube-analytics), source codes are available [here](https://IoTube-analytics.github.io/react-iotube-analytics).  
 Frontend overview:
 ![Front](assets/front.png "Front")
 ### Influxdb dashboard
