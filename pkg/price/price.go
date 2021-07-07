@@ -24,15 +24,21 @@ import (
 
 // Map: symbol -> API ids.
 var symbolToIds = map[string]string{
-	"wbtc": "bitcoin",
-	"weth": "ethereum",
-	"uni":  "uniswap",
-	"busd": "busd",
-	"link": "link",
-	"usdt": "tether",
-	"iotx": "iotex",
-	"paxg": "pax-gold",
-	"cyc":  "cyclone-protocol",
+	"wbtc":   "bitcoin",
+	"weth":   "ethereum",
+	"uni":    "uniswap",
+	"busd":   "busd",
+	"usdc":   "usd-coin",
+	"link":   "link",
+	"usdt":   "tether",
+	"iotx":   "iotex",
+	"paxg":   "pax-gold",
+	"cyc":    "cyclone-protocol",
+	"wmatic": "matic-network",
+	"sushi":  "sushi",
+	"dai":    "dai",
+	"aave":   "aave",
+	"quick":  "quick",
 }
 var CoinGeckoAPI = "https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=usd"
 
@@ -81,15 +87,14 @@ func (self *PriceTracker) Start() error {
 			ctx, _ := context.WithTimeout(self.ctx, 2*time.Second)
 			price, err := Fetch(ctx, symbolToIds[strings.ToLower(symbol)])
 			if err != nil {
-				level.Error(self.logger).Log("msg", "fetching price from api", "err", err)
+				level.Error(self.logger).Log("msg", "fetching price from api", "symbol", symbol, "err", err)
+				continue
 			}
 			level.Debug(self.logger).Log("msg", "recording price", "price", price)
-
 			err = self.store.RecordPrice(symbol, price)
 			if err != nil {
 				level.Error(self.logger).Log("msg", "recording price", "err", err)
 			}
-
 		}
 		select {
 		case <-self.ctx.Done():

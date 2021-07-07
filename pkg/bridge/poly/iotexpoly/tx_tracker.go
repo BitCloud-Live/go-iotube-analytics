@@ -1,4 +1,4 @@
-package iotexeth
+package iotexpoly
 
 import (
 	"context"
@@ -78,7 +78,7 @@ func (self *TransactionTracker) Start() error {
 		)
 
 		// Get last checked block number from the db.
-		lastCheckedBlockNo, err := self.store.LastCheckedBlockNo(typ.NetIoTeX, typ.NetEthereum)
+		lastCheckedBlockNo, err := self.store.LastCheckedBlockNo(typ.NetIoTeX, typ.NetPolygon)
 		if lastCheckedBlockNo == nil {
 			level.Error(self.logger).Log("msg", "getting lastCheckedBlockNo", "err", err)
 			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
@@ -131,7 +131,7 @@ func (self *TransactionTracker) Start() error {
 				"toBlockNo", toBlockNo,
 			)
 		} else {
-			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetIoTeX, typ.NetEthereum)
+			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetIoTeX, typ.NetPolygon)
 			if err != nil {
 				level.Error(self.logger).Log("msg", "updating iotex blockchain state",
 					"err", err,
@@ -204,7 +204,7 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 			Hash:       iter.Event.Raw.TxHash.String(),
 			To:         iter.Event.Recipient.String(),
 			Symbol:     symbol,
-			Bridge:     typ.EthereumIoteX,
+			Bridge:     typ.PolygonIoteX,
 			BridgeSide: typ.FromRight,
 			From:       iter.Event.Sender.String(),
 			Timestamp:  block.Header().Time,

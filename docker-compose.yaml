@@ -14,10 +14,11 @@ services:
     links:
       - influxdb
     image: quay.io/influxdb/influxdb:v2.0.4
-    entrypoint: influx setup --bucket my-bucket -t jhkh987y98hbnuiub -o my-org --username=hhio618 --password=narnia618 --host=http://influxdb:8086 -f
+    entrypoint: influx setup --bucket my-bucket -t jhkh987y98hbnuiub -o my-org --username=test --password=password --host=http://influxdb:8086 -f
 
     restart: on-failure:20
     depends_on:
       - influxdb
+  
 volumes:
   influxdbv2:

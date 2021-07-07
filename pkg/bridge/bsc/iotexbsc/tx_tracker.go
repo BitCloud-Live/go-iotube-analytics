@@ -78,7 +78,7 @@ func (self *TransactionTracker) Start() error {
 		)
 
 		// Get last checked block number from the db.
-		lastCheckedBlockNo, err := self.store.LastCheckedBlockNo(typ.NetIoTeX, typ.NetEthereum)
+		lastCheckedBlockNo, err := self.store.LastCheckedBlockNo(typ.NetIoTeX)
 		if lastCheckedBlockNo == nil {
 			level.Error(self.logger).Log("msg", "getting lastCheckedBlockNo", "err", err)
 			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
@@ -131,7 +131,7 @@ func (self *TransactionTracker) Start() error {
 				"toBlockNo", toBlockNo,
 			)
 		} else {
-			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetIoTeX, typ.NetEthereum)
+			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetIoTeX)
 			if err != nil {
 				level.Error(self.logger).Log("msg", "updating iotex blockchain state",
 					"err", err,

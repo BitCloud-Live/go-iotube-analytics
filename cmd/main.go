@@ -10,6 +10,8 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/ethiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/iotexpoly"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/polyiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/config"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/ethereum"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
@@ -38,10 +40,18 @@ func main() {
 		ExitOnErr(err, "creating client")
 
 	}
+
 	// IoTeX babel api client.
 	babelClient, err := ethclient.DialContext(globalCtx, iotexeth.BabelHost)
 	if err != nil {
-		ExitOnErr(err, "creating client")
+		ExitOnErr(err, "creating iotex client")
+
+	}
+
+	// IoTeX babel api client.
+	polygonClient, err := ethclient.DialContext(globalCtx, os.Getenv(polyiotex.NodeUrlKey))
+	if err != nil {
+		ExitOnErr(err, "creating polygon client")
 
 	}
 
@@ -85,7 +95,7 @@ func main() {
 		})
 
 		// Ethereum bridge
-		{
+		if false {
 			// Ethereum part.
 			{
 				if true {
@@ -121,16 +131,68 @@ func main() {
 			// iotex part.
 			if true {
 				// ethereum tx tracker.
-				iotexTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXEth, store)
+				iotexEthTXTracker, err := iotexeth.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXEth, store)
 				if err != nil {
-					ExitOnErr(err, "creating ethBridgeTXTracker")
+					ExitOnErr(err, "creating iotexEthTXTracker")
 				}
 				g.Add(func() error {
-					iotexTXTracker.Start()
+					iotexEthTXTracker.Start()
 					level.Info(logger).Log("msg", "iotexeth tx tracker shutdown complete")
 					return nil
 				}, func(error) {
-					iotexTXTracker.Stop()
+					iotexEthTXTracker.Stop()
+				})
+
+			}
+		}
+
+		// Polygon bridge
+		{
+			// Polygon part.
+			{
+				if true {
+					// Polygon tx tracker.
+					polyTXTracker, err := polyiotex.NewTransactionTracker(globalCtx, polygonClient, logger, cfg.PolyIoTeX, store)
+					if err != nil {
+						ExitOnErr(err, "creating polyTXTracker")
+					}
+					g.Add(func() error {
+						polyTXTracker.Start()
+						level.Info(logger).Log("msg", "polyiotex tx tracker shutdown complete")
+						return nil
+					}, func(error) {
+						polyTXTracker.Stop()
+					})
+
+					// Polygon tvl tracker.
+					if true {
+						polyTVLTracker, err := polyiotex.NewTVLTracker(globalCtx, polygonClient, logger, cfg.PolyIoTeX, store)
+						if err != nil {
+							ExitOnErr(err, "creating polyTVLTracker")
+						}
+						g.Add(func() error {
+							polyTVLTracker.Start()
+							level.Info(logger).Log("msg", "polyiotex tvl tracker shutdown complete")
+							return nil
+						}, func(error) {
+							polyTVLTracker.Stop()
+						})
+					}
+				}
+			}
+			// iotex part.
+			if false {
+				// ethereum tx tracker.
+				iotexPolyTXTracker, err := iotexpoly.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXPoly, store)
+				if err != nil {
+					ExitOnErr(err, "creating iotexPolyTXTracker")
+				}
+				g.Add(func() error {
+					iotexPolyTXTracker.Start()
+					level.Info(logger).Log("msg", "iotexpoly tx tracker shutdown complete")
+					return nil
+				}, func(error) {
+					iotexPolyTXTracker.Stop()
 				})
 
 			}

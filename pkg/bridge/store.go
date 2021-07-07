@@ -47,13 +47,14 @@ func NewSore(ctx context.Context, logger log.Logger, cfg Config, tsdb influxdb2.
 }
 
 // LastCheckedBlockNo returns last checked block number.
-func (self *Store) LastCheckedBlockNo(network types.Network) (*big.Int, error) {
+func (self *Store) LastCheckedBlockNo(network, peer types.Network) (*big.Int, error) {
 	// Get parser flux query result
 	query := `from(bucket: "my-bucket")
 	|> range(start: -10d)
 	|> filter(fn: (r) => r["_measurement"] == "blockchain")
 	|> filter(fn: (r) => r["_field"] == "block_number")
 	|> filter(fn: (r) => r["network"] == ` + "\"" + string(network) + "\"" + `)
+	|> filter(fn: (r) => r["peer"] == ` + "\"" + string(peer) + "\"" + `)
 	|> last()`
 	result, err := self.readAPI.Query(context.Background(), query)
 
@@ -128,10 +129,11 @@ func (self *Store) RecordPrice(symbol string, price float64) error {
 	return nil
 }
 
-func (self *Store) UpdateLastCheckedBlockNo(blockNo *big.Int, net types.Network) error {
+func (self *Store) UpdateLastCheckedBlockNo(blockNo *big.Int, net types.Network, peer types.Network) error {
 	// Create point using fluent style
 	p := influxdb2.NewPointWithMeasurement("blockchain").
 		AddTag("network", string(net)).
+		AddTag("peer", string(peer)).
 		AddField("block_number", blockNo.Uint64()).
 		SetTime(time.Now())
 	err := self.writeAPI.WritePoint(context.Background(), p)

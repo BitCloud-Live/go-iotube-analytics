@@ -18,7 +18,7 @@ import (
 )
 
 const PrivateKeysEnvName = "ETH_PRIVATE_KEYS"
-const NodeURLEnvName = "NODE_URL"
+const NodeURLEnvName = "ETH_NODE_URL"
 
 func DecodeHex(s string) []byte {
 	b, err := hex.DecodeString(s)

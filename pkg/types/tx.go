@@ -4,6 +4,8 @@ type Bridge string
 
 const (
 	EthereumIoteX Bridge = "ethereum"
+	BscIoteX      Bridge = "bsc"
+	PolygonIoteX  Bridge = "polygon"
 )
 
 type BridgeSide string

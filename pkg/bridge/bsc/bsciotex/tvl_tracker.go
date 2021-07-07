@@ -1,4 +1,4 @@
-package ethiotex
+package bsciotex
 
 import (
 	"context"

@@ -10,6 +10,8 @@ import (
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/ethiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/iotexpoly"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/polyiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/db"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/format"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/price"
@@ -23,12 +25,14 @@ import (
 // Config is the top-level configuration that holds configs for all components.
 
 type Config struct {
-	Web      web.Config
-	EthIoTeX ethiotex.Config
-	IoTeXEth iotexeth.Config
-	Price    price.Config
-	Db       db.Config
-	Bridge   bridge.Config
+	Web       web.Config
+	EthIoTeX  ethiotex.Config
+	IoTeXEth  iotexeth.Config
+	IoTeXPoly iotexpoly.Config
+	PolyIoTeX polyiotex.Config
+	Price     price.Config
+	Db        db.Config
+	Bridge    bridge.Config
 	// EnvFile location that include all private details like private key etc.
 	EnvFile string `json:"envFile"`
 }
@@ -50,6 +54,14 @@ var DefaultConfig = Config{
 		Timeout:  3000,
 	},
 	IoTeXEth: iotexeth.Config{
+		LogLevel: "info",
+		Timeout:  3000,
+	},
+	IoTeXPoly: iotexpoly.Config{
+		LogLevel: "info",
+		Timeout:  3000,
+	},
+	PolyIoTeX: polyiotex.Config{
 		LogLevel: "info",
 		Timeout:  3000,
 	},

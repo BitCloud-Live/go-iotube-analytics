@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
-	eth_bridge "github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/contracts/tokenCashier"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/logging"
 	typ "github.com/IoTube-analytics/go-iotube-analytics/pkg/types"
@@ -30,7 +29,7 @@ type TransactionTracker struct {
 	client *ethclient.Client
 	store  *bridge.Store
 	// Map: token address ->  token symbol.
-	tokens map[string]eth_bridge.ERC20
+	tokens map[string]bridge.ERC20
 }
 
 func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger log.Logger, cfg Config, store *bridge.Store) (*TransactionTracker, error) {
@@ -41,7 +40,7 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 	logger = log.With(filterLog, "component", ComponentName)
 	// Getting tokens.
 	ctx1, _ := context.WithTimeout(ctx, 10*time.Second)
-	tokens, err := eth_bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, ProxyTokenListAddress)
+	tokens, err := bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, ProxyTokenListAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}
@@ -78,7 +77,7 @@ func (self *TransactionTracker) Start() error {
 		)
 
 		// Get last checked block number from the db.
-		lastCheckedBlockNo, _ := self.store.LastCheckedBlockNo(typ.NetEthereum)
+		lastCheckedBlockNo, _ := self.store.LastCheckedBlockNo(typ.NetEthereum, typ.NetIoTeX)
 		if lastCheckedBlockNo == nil {
 			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
 			level.Info(self.logger).Log("msg", "watching ethereum blockchain for the first time")
@@ -130,7 +129,7 @@ func (self *TransactionTracker) Start() error {
 				"toBlockNo", toBlockNo,
 			)
 		} else {
-			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetEthereum)
+			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetEthereum, typ.NetIoTeX)
 			if err != nil {
 				level.Error(self.logger).Log("msg", "updating eth blockchain state",
 					"err", err,
@@ -175,12 +174,12 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 			"handle event", "event", iter.Event.Raw.TxHash.String(),
 		)
 		ctx, _ := context.WithTimeout(self.ctx, 2*time.Second)
-		decimals, err := eth_bridge.GetTokenDecimals(ctx, self.client, iter.Event.Token)
+		decimals, err := bridge.GetTokenDecimals(ctx, self.client, iter.Event.Token)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting token symbol")
 		}
 		ctx, _ = context.WithTimeout(self.ctx, 2*time.Second)
-		symbol, err := eth_bridge.GetTokenSymbol(ctx, self.client, iter.Event.Token)
+		symbol, err := bridge.GetTokenSymbol(ctx, self.client, iter.Event.Token)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting token symbol")
 		}

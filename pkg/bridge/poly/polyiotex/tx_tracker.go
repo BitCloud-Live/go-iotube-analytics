@@ -1,4 +1,4 @@
-package iotexeth
+package polyiotex
 
 import (
 	"context"
@@ -38,10 +38,9 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 		return nil, errors.Wrap(err, "apply filter logger")
 	}
 	logger = log.With(filterLog, "component", ComponentName)
-
 	// Getting tokens.
-	ctx1, _ := context.WithTimeout(ctx, 2*time.Second)
-	tokens, err := bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, ProxyTokenListAddress)
+	ctx1, _ := context.WithTimeout(ctx, 10*time.Second)
+	tokens, err := bridge.GetTokenList(ctx1, client, logger, StandardTokenListAddress, MintableTokenListAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting token list")
 	}
@@ -60,12 +59,12 @@ func NewTransactionTracker(ctx context.Context, client *ethclient.Client, logger
 
 func (self *TransactionTracker) Stop() {
 	self.cncl()
-	level.Debug(self.logger).Log("msg", "iotex tx tracker stopped")
+	level.Debug(self.logger).Log("msg", "eth tx tracker stopped")
 }
 
 func (self *TransactionTracker) Start() error {
-	level.Debug(self.logger).Log("msg", "iotex tx tracker started")
-	// IoTeX blocktime ticker.
+	level.Debug(self.logger).Log("msg", "eth tx tracker started")
+	// Ethereum blocktime ticker.
 	ticker := time.NewTicker(20 * time.Second)
 	for {
 		select {
@@ -78,11 +77,10 @@ func (self *TransactionTracker) Start() error {
 		)
 
 		// Get last checked block number from the db.
-		lastCheckedBlockNo, err := self.store.LastCheckedBlockNo(typ.NetIoTeX, typ.NetEthereum)
+		lastCheckedBlockNo, _ := self.store.LastCheckedBlockNo(typ.NetPolygon, typ.NetIoTeX)
 		if lastCheckedBlockNo == nil {
-			level.Error(self.logger).Log("msg", "getting lastCheckedBlockNo", "err", err)
 			fromBlockNo = big.NewInt(TokenCashierStartBlockNo)
-			level.Info(self.logger).Log("msg", "watching iotex blockchain for the first time")
+			level.Info(self.logger).Log("msg", "watching ethereum blockchain for the first time")
 		} else {
 			// Look ahead one block to make sure we didn't miss any new invoices.
 			fromBlockNo = lastCheckedBlockNo
@@ -101,6 +99,7 @@ func (self *TransactionTracker) Start() error {
 
 		if toBlockNo.Cmp(fromBlockNo) == -1 {
 			level.Debug(self.logger).Log("msg", "no new block to check, waiting...")
+			<-ticker.C
 			continue
 		}
 		level.Info(self.logger).Log("msg", "checking for new transactions",
@@ -109,7 +108,7 @@ func (self *TransactionTracker) Start() error {
 		)
 		txs, err := self.traverse(fromBlockNo, toBlockNo)
 		if err != nil {
-			level.Error(self.logger).Log("msg", "traversing the iotex blockchain",
+			level.Error(self.logger).Log("msg", "traversing the eth blockchain",
 				"err", err,
 				"fromBlockNo", fromBlockNo,
 				"toBlockNo", toBlockNo,
@@ -120,7 +119,6 @@ func (self *TransactionTracker) Start() error {
 			"new transactions count",
 			"count", len(txs),
 		)
-
 		// Lets commit txs to the database.
 		// FIXME: better logic needed here.
 		err = self.store.RecordTxs(txs)
@@ -131,9 +129,9 @@ func (self *TransactionTracker) Start() error {
 				"toBlockNo", toBlockNo,
 			)
 		} else {
-			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetIoTeX, typ.NetEthereum)
+			err = self.store.UpdateLastCheckedBlockNo(toBlockNo, typ.NetPolygon, typ.NetIoTeX)
 			if err != nil {
-				level.Error(self.logger).Log("msg", "updating iotex blockchain state",
+				level.Error(self.logger).Log("msg", "updating eth blockchain state",
 					"err", err,
 					"lastCheckedBlockNo", toBlockNo,
 				)
@@ -204,12 +202,13 @@ func (self *TransactionTracker) traverse(fromBlockNo, toBlockNo *big.Int) ([]typ
 			Hash:       iter.Event.Raw.TxHash.String(),
 			To:         iter.Event.Recipient.String(),
 			Symbol:     symbol,
-			Bridge:     typ.EthereumIoteX,
-			BridgeSide: typ.FromRight,
+			Bridge:     typ.PolygonIoteX,
+			BridgeSide: typ.FromLeft,
 			From:       iter.Event.Sender.String(),
 			Timestamp:  block.Header().Time,
 		}
 		txs = append(txs, tx)
 	}
+
 	return txs, nil
 }
