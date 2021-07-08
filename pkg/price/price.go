@@ -39,6 +39,7 @@ var symbolToIds = map[string]string{
 	"dai":    "dai",
 	"aave":   "aave",
 	"quick":  "quick",
+	"wbnb":   "wbnb",
 }
 var CoinGeckoAPI = "https://api.coingecko.com/api/v3/simple/price?ids=%v&vs_currencies=usd"
 

@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/bsc/bsciotex"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/bsc/iotexbsc"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/ethiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/iotexpoly"
@@ -42,7 +44,7 @@ func main() {
 	}
 
 	// IoTeX babel api client.
-	babelClient, err := ethclient.DialContext(globalCtx, iotexeth.BabelHost)
+	babelClient, err := ethclient.DialContext(globalCtx, os.Getenv(iotexeth.NodeUrlKey))
 	if err != nil {
 		ExitOnErr(err, "creating iotex client")
 
@@ -50,6 +52,13 @@ func main() {
 
 	// Polygon api client.
 	polygonClient, err := ethclient.DialContext(globalCtx, os.Getenv(polyiotex.NodeUrlKey))
+	if err != nil {
+		ExitOnErr(err, "creating polygon client")
+
+	}
+
+	// Bsc api client.
+	bscClient, err := ethclient.DialContext(globalCtx, os.Getenv(bsciotex.NodeUrlKey))
 	if err != nil {
 		ExitOnErr(err, "creating polygon client")
 
@@ -197,6 +206,58 @@ func main() {
 				}, func(error) {
 					iotexPolyTXTracker.Stop()
 					level.Info(logger).Log("msg", "iotexpoly tx tracker shutdown complete")
+				})
+			}
+		}
+
+		// Bsc bridge
+		{
+			// BSC part.
+			{
+				{
+					// BSC tx tracker.
+					bscTXTracker, err := bsciotex.NewTransactionTracker(globalCtx, bscClient, logger, cfg.BscIoTeX, store)
+					if err != nil {
+						ExitOnErr(err, "creating bscTXTracker")
+					}
+					g.Add(func() error {
+						level.Info(logger).Log("msg", "bsciotex tx tracker started")
+						return bscTXTracker.Start()
+					}, func(error) {
+						bscTXTracker.Stop()
+						level.Info(logger).Log("msg", "bsciotex tx tracker shutdown complete")
+					})
+
+					// Bsc tvl tracker.
+					{
+						bscTVLTracker, err := bsciotex.NewTVLTracker(globalCtx, bscClient, logger, cfg.BscIoTeX, store)
+						if err != nil {
+							ExitOnErr(err, "creating bscTVLTracker")
+						}
+						g.Add(func() error {
+
+							level.Info(logger).Log("msg", "bsciotex tvl tracker started")
+							return bscTVLTracker.Start()
+						}, func(error) {
+							bscTVLTracker.Stop()
+							level.Info(logger).Log("msg", "bsciotex tvl tracker shutdown complete")
+						})
+					}
+				}
+			}
+			// iotex part.
+			{
+				// ethereum tx tracker.
+				iotexBscTXTracker, err := iotexbsc.NewTransactionTracker(globalCtx, babelClient, logger, cfg.IoTeXBsc, store)
+				if err != nil {
+					ExitOnErr(err, "creating iotexBscTXTracker")
+				}
+				g.Add(func() error {
+					level.Info(logger).Log("msg", "iotexbsc tx tracker started")
+					return iotexBscTXTracker.Start()
+				}, func(error) {
+					iotexBscTXTracker.Stop()
+					level.Info(logger).Log("msg", "iotexbsc tx tracker shutdown complete")
 				})
 			}
 		}

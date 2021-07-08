@@ -17,7 +17,7 @@ var ProxyTokenListAddress = common.HexToAddress("0x6ccf305a21defff295e616ba5aa42
 const TokenCashierStartBlockNo = 9529096
 const TokenSafeStartBlockNo = 9509443
 
-const BabelHost = "https://babel-api.mainnet.iotex.io"
+const NodeUrlKey = "IOTEX_BABEL_URL"
 
 // We will track at most `ethBridgeTVLTracker` block before save the tx data to the tsdb.
 const blockLimitBeforeCommit = uint64(10000)

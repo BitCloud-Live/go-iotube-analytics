@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/bsc/bsciotex"
+	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/bsc/iotexbsc"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/ethiotex"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/eth/iotexeth"
 	"github.com/IoTube-analytics/go-iotube-analytics/pkg/bridge/poly/iotexpoly"
@@ -30,6 +32,8 @@ type Config struct {
 	IoTeXEth  iotexeth.Config
 	IoTeXPoly iotexpoly.Config
 	PolyIoTeX polyiotex.Config
+	BscIoTeX  bsciotex.Config
+	IoTeXBsc  iotexbsc.Config
 	Price     price.Config
 	Db        db.Config
 	Bridge    bridge.Config
@@ -62,6 +66,14 @@ var DefaultConfig = Config{
 		Timeout:  3000,
 	},
 	PolyIoTeX: polyiotex.Config{
+		LogLevel: "info",
+		Timeout:  3000,
+	},
+	BscIoTeX: bsciotex.Config{
+		LogLevel: "info",
+		Timeout:  3000,
+	},
+	IoTeXBsc: iotexbsc.Config{
 		LogLevel: "info",
 		Timeout:  3000,
 	},
